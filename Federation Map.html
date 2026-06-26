@@ -86,6 +86,30 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 #list .item{transition:border-color .14s,background .14s}
 #list .item:hover{background:rgba(59,130,246,.07)}
 
+/* === PULSE RINGS + DIV MARKERS === */
+.marker-wrap{position:relative;display:flex;align-items:center;justify-content:center}
+.marker-dot{border-radius:50%;position:absolute;border:1.2px solid rgba(14,21,37,.7);cursor:pointer;transition:transform .15s,filter .15s}
+.marker-dot:hover{transform:scale(1.25);filter:brightness(1.35)}
+.pulse-ring{position:absolute;inset:0;border-radius:50%;border:2px solid var(--ring-color,#e23b3b);animation:pulse-expand var(--ring-speed,1.4s) ease-out infinite;opacity:0;pointer-events:none}
+@keyframes pulse-expand{0%{transform:scale(.82);opacity:.8}100%{transform:scale(2.8);opacity:0}}
+.dimmed-marker{opacity:.15!important;transition:opacity .25s}
+.leaflet-marker-icon{transition:opacity .25s}
+
+/* === DETAIL PANEL === */
+#detail-panel{position:absolute;top:0;right:0;bottom:0;width:370px;max-width:92vw;background:var(--panel);border-left:1px solid var(--line);z-index:700;transform:translateX(101%);transition:transform .38s cubic-bezier(.16,1,.3,1);overflow-y:auto;display:flex;flex-direction:column}
+#detail-panel.open{transform:translateX(0)}
+#detail-hdr{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 0;gap:8px}
+#detail-hdr .d-pill{display:inline-block;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:10px;color:#fff}
+#detail-close{background:none;border:1px solid var(--line);color:var(--muted);font-size:14px;cursor:pointer;padding:3px 9px;border-radius:6px;line-height:1;transition:color .15s,border-color .15s}
+#detail-close:hover{color:var(--ink);border-color:var(--ink)}
+#detail-content{padding:10px 16px 28px;font-size:12.5px;line-height:1.5;flex:1}
+#detail-content h3{margin:0 0 2px;font-size:15px;font-weight:700;color:var(--ink)}
+#detail-content .loc{color:var(--muted);font-size:11px;margin-bottom:10px}
+
+/* === MAP COUNTER === */
+#map-counter{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);z-index:600;background:rgba(14,21,37,.82);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:20px;padding:5px 16px;font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap;transition:opacity .3s}
+#map-counter b{color:var(--ink)}
+
 /* sidebar scroll-reveal */
 .block{opacity:0;transform:translateY(10px);transition:opacity .35s ease,transform .35s ease}
 .block.revealed{opacity:1;transform:none}
@@ -1024,6 +1048,14 @@ document.addEventListener('DOMContentLoaded', function() {
   <div id="mapwrap">
     <div class="maptitle" id="maptitle">Jewish population density &mdash; <b>where American Jewry concentrates</b></div>
     <div id="map"></div>
+    <div id="map-counter"></div>
+    <div id="detail-panel">
+      <div id="detail-hdr">
+        <span id="detail-pill" class="d-pill"></span>
+        <button id="detail-close" title="Close panel">✕ close</button>
+      </div>
+      <div id="detail-content"></div>
+    </div>
   </div>
 </div>
 
@@ -1038,7 +1070,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
 }).addTo(map);
 
 let heatLayer=null, markerLayer=L.layerGroup().addTo(map);
-const state={view:'risk',tier:'',scope:'',country:'',q:'',prios:new Set(['Critical','High','Moderate','Lower'])};
+const state={view:'risk',tier:'',scope:'',country:'',q:'',prios:new Set(['Critical','High','Moderate','Lower']),selected:null};
 
 function radius(jp){ return Math.max(5, Math.min(34, 4.2*Math.sqrt(jp/1000)+4)); }
 function adlColor(d){
@@ -1113,20 +1145,34 @@ function drawMarkers(rows){
   markerLayer.clearLayers();
   if(state.view==='heat') return;
   rows.forEach(d=>{
-    const m=L.circleMarker([d.lat,d.lon],{
-      radius:radius(d.jewish_pop), color:'#0e1525', weight:1.2,
-      fillColor: markerColor(d), fillOpacity:0.85});
-    m.bindPopup(popupHTML(d),{maxWidth:320});
+    const color = markerColor(d);
+    const r = radius(d.jewish_pop);
+    const dot = r * 2;
+    const size = dot + 18; // padding for pulse ring
+    const needPulse = d.priority==='Critical' || d.priority==='High';
+    const speed = d.priority==='Critical' ? '1.1s' : '1.9s';
+    const dimmed = state.selected && state.selected !== d;
+    const pulse = (needPulse && !dimmed)
+      ? `<div class="pulse-ring" style="--ring-color:${color};--ring-speed:${speed}"></div>` : '';
+    const off = (size - dot) / 2;
+    const icon = L.divIcon({
+      html: `<div class="marker-wrap" style="width:${size}px;height:${size}px">${pulse}<div class="marker-dot" style="background:${color};width:${dot}px;height:${dot}px;top:${off}px;left:${off}px"></div></div>`,
+      className: dimmed ? 'dimmed-marker' : '',
+      iconSize: [size, size],
+      iconAnchor: [size/2, size/2]
+    });
+    const m = L.marker([d.lat, d.lon], {icon, interactive:true});
     const tip = state.view==='security'
-      ? `${d.name} &middot; ${d.adl_per_100k!=null?d.adl_per_100k+'/100k':'n/a'}`
+      ? `${d.name} · ${d.adl_per_100k!=null?d.adl_per_100k+'/100k':'n/a'}`
       : state.view==='growth'
-      ? `${d.name} &middot; ${d.growth_pct_10yr>0?'+':''}${d.growth_pct_10yr}% / 10yr`
+      ? `${d.name} · ${d.growth_pct_10yr>0?'+':''}${d.growth_pct_10yr}% / 10yr`
       : state.view==='value'
-      ? `${d.name} &middot; value ${d.value_score}`
+      ? `${d.name} · value ${d.value_score}`
       : state.view==='adl25'
-      ? `${d.name} &middot; ${d.adl_yoy_pct_24_25!=null?(d.adl_yoy_pct_24_25>0?'+':'')+d.adl_yoy_pct_24_25+'% YoY':'2025 pending'}`
-      : `${d.name} &middot; ${fmtK(d.jewish_pop)} Jews`;
-    m.bindTooltip(tip,{direction:'top',opacity:0.9});
+      ? `${d.name} · ${d.adl_yoy_pct_24_25!=null?(d.adl_yoy_pct_24_25>0?'+':'')+d.adl_yoy_pct_24_25+'% YoY':'2025 pending'}`
+      : `${d.name} · ${fmtK(d.jewish_pop)} Jews`;
+    m.bindTooltip(tip, {direction:'top', opacity:0.92});
+    m.on('click', ()=>selectCommunity(d));
     markerLayer.addLayer(m);
   });
 }
@@ -1157,8 +1203,7 @@ function updateList(rows){
       <span class="pbadge ${b.cls}">${b.txt}</span></div>
     </div>`;}).join('');
   document.querySelectorAll('#list .item').forEach(el=>{
-    el.onclick=()=>{ map.setView([+el.dataset.lat,+el.dataset.lon],7,{animate:true});
-      markerLayer.eachLayer(l=>{ if(l.getLatLng().lat==+el.dataset.lat && l.getLatLng().lng==+el.dataset.lon) l.openPopup(); }); };
+    el.onclick=()=>{ const d=DATA.find(x=>x.name===el.dataset.nm); if(d) selectCommunity(d); };
   });
 }
 function titleFor(){
@@ -1175,6 +1220,7 @@ function render(){
   drawHeat(rows); drawMarkers(rows); drawSCN();
   updateStats(rows); updateList(rows);
   document.getElementById('maptitle').innerHTML=titleFor();
+  updateMapCounter();
 }
 
 const SCN_REGIONS = [{"name":"National HQ & JSOCC","type":"National command center","advisor":"24/7 Jewish Security Operations Command Center (JSOCC)","since":"","states":"Nationwide","notes":"Umbrella over all local & regional SCN programs; intel, threat analysis, and incident intake for the entire community.","lat":41.8781,"lon":-87.6298,"radius_mi":0},{"name":"Oklahoma\u2013Arkansas Security Program","type":"Regional Security Advisor (RSA)","advisor":"Jason Knight","since":"Jul 2025","states":"OK, AR","notes":"Covers the Jewish Federations of Greater Oklahoma City, Tulsa, and Arkansas.","lat":35.3,"lon":-95.9,"radius_mi":250},{"name":"West Texas\u2013New Mexico Program","type":"Regional Security Advisor (RSA)","advisor":"Marissa Almeida","since":"Dec 2025","states":"West TX, NM","notes":"Covers West Texas and New Mexico, including El Paso.","lat":32.3,"lon":-104.8,"radius_mi":260},{"name":"Colorado Program","type":"Regional Security Advisors (RSA)","advisor":"Kevin Farrington; Brian Maloney","since":"","states":"CO","notes":"Covers Colorado Jewish communities (Denver metro + statewide).","lat":39.7392,"lon":-104.9903,"radius_mi":130},{"name":"Connecticut Program","type":"Regional Security Advisor (RSA)","advisor":"Michael Shanbrom","since":"","states":"CT","notes":"Covers New Haven, Western Connecticut, and Eastern Connecticut.","lat":41.45,"lon":-72.8,"radius_mi":55},{"name":"Greater Nashville Program","type":"Regional Security Advisor (RSA)","advisor":"John Curatolo","since":"","states":"TN","notes":"Covers the Jewish Federation of Greater Nashville.","lat":36.1627,"lon":-86.7816,"radius_mi":60},{"name":"New Jersey Regional Threat Center","type":"Regional Threat Center (RTC)","advisor":"Anchored at Jewish Federation of Southern NJ","since":"2025","states":"NJ, DE, NY","notes":"RTC covering New Jersey, Delaware, and New York communities.","lat":39.9348,"lon":-75.0307,"radius_mi":130},{"name":"Ohio Threat Management Center","type":"Regional Threat Center (RTC)","advisor":"8-federation consortium","since":"2025","states":"OH","notes":"Statewide Ohio consortium of 8 Jewish Federations covering all major cities.","lat":39.9612,"lon":-82.9988,"radius_mi":130},{"name":"South Florida Regional Threat Center","type":"Regional Threat Center (RTC)","advisor":"4-federation consortium","since":"2025","states":"FL (south)","notes":"Greater Miami, Broward, Palm Beach, and South Palm Beach federations.","lat":26.3,"lon":-80.15,"radius_mi":75}];
@@ -1208,6 +1254,63 @@ function drawSCN(){
   });
   scnLayer.addTo(map);
 }
+
+// === SELECTION + PANEL ===
+function panelHTML(d){
+  const sec = d.head_of_security
+    ? `<div class="secflag"><b>Head of security:</b> ${d.head_of_security}</div>`
+    : `<div class="secflag">&#9888; Head of security: <b>VERIFY VIA SCN</b></div>`;
+  const ed = d.exec_director || '<span style="color:var(--muted)">research pending</span>';
+  const adl24 = d.adl_incidents_2024!=null
+    ? `${fmt(d.adl_incidents_2024)} incidents <span style="color:var(--muted)">(${d.adl_per_100k}/100k)</span>`
+    : '<span style="color:var(--muted)">n/a</span>';
+  const adl25 = d.adl_incidents_2025!=null
+    ? `${fmt(d.adl_incidents_2025)} <span style="color:${d.adl_yoy_pct_24_25>=0?'var(--crit)':'var(--low)'};font-weight:700">${d.adl_yoy_pct_24_25>0?'+':''}${d.adl_yoy_pct_24_25}% YoY</span>`
+    : '<span style="color:var(--muted)">pending</span>';
+  return `<h3>${d.name}</h3>
+  <div class="loc">${d.city}, ${d.state} &middot; ${SCOPE_LBL[d.territory_scope]||d.territory_scope}</div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">
+    <tr><td class="k">Jewish pop</td><td><b>${fmt(d.jewish_pop)}</b> <span class="srctag ${d.pop_source==='Federation-provided'?'src-fed':'src-est'}">${d.pop_source}</span></td></tr>
+    <tr><td class="k">Catchment</td><td>${fmt(d.total_pop)} total &middot; ${d.density_per_1000}/1k density</td></tr>
+    <tr><td class="k">Territory</td><td>~${fmt(d.area_sq_mi)} sq mi${d.large_territory?' &mdash; <b style="color:var(--gold)">large territory</b>':''}</td></tr>
+    <tr><td class="k">Isolation</td><td>${d.is_hub?'Hub community':(d.isolation_mi!=null?`~${fmt(d.isolation_mi)} mi → ${d.nearest_hub}`:'—')}</td></tr>
+    <tr><td class="k">Vulnerability</td><td><b style="font-size:14px">${d.vulnerability}</b> / 100</td></tr>
+    <tr><td class="k">ADL 2024</td><td>${adl24}</td></tr>
+    <tr><td class="k">ADL 2025</td><td>${adl25}</td></tr>
+    <tr><td class="k">10-yr growth</td><td>${d.growth_pct_10yr>0?'+':''}${d.growth_pct_10yr}% <span style="color:var(--muted)">(${d.growth_band})</span></td></tr>
+    <tr><td class="k">Value score</td><td><b>${d.value_score}</b> / 100 &middot; ${d.value_tier}</td></tr>
+    <tr><td class="k">Exec director</td><td>${ed}</td></tr>
+    <tr><td class="k">Website</td><td><a href="https://${d.website.replace(/^https?:\/\//,'')}" target="_blank" style="color:var(--accent)">${d.website}</a></td></tr>
+    ${d.note?`<tr><td class="k">Note</td><td style="color:var(--muted)">${d.note}</td></tr>`:''}
+  </table>${sec}`;
+}
+
+function selectCommunity(d){
+  state.selected = d;
+  map.flyTo([d.lat, d.lon], 7, {duration:1.2, easeLinearity:0.25});
+  const pill = document.getElementById('detail-pill');
+  pill.textContent = d.priority;
+  pill.style.background = PCOL[d.priority]||'#555';
+  document.getElementById('detail-content').innerHTML = panelHTML(d);
+  document.getElementById('detail-panel').classList.add('open');
+  drawMarkers(filtered());
+}
+
+function closePanel(){
+  state.selected = null;
+  document.getElementById('detail-panel').classList.remove('open');
+  drawMarkers(filtered());
+}
+document.getElementById('detail-close').onclick = closePanel;
+
+// === MAP COUNTER ===
+function updateMapCounter(){
+  const bounds = map.getBounds();
+  const vis = filtered().filter(d=>bounds.contains([d.lat, d.lon]));
+  const el = document.getElementById('map-counter');
+  if(el) el.innerHTML = `<b>${vis.length}</b> communities in view &nbsp;·&nbsp; <b>${fmtK(vis.reduce((a,b)=>a+b.jewish_pop,0))}</b> Jews`;
+}
+map.on('moveend zoomend', updateMapCounter);
 
 // wire controls
 document.querySelectorAll('#viewseg button').forEach(b=>b.onclick=()=>{
