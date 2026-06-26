@@ -274,67 +274,38 @@ document.addEventListener('DOMContentLoaded', function() {
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(30,32,32),
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(skyCvs),side:THREE.BackSide,depthWrite:false})));
 
-  // ── starfield — twinkle shader + parallax layers + shooting stars ─────────
-  var starLayers = []; // for parallax
-  var mouseParallax = {x:0, y:0, tx:0, ty:0}; // lerp targets
+  // ── starfield — 4 parallax layers, per-layer shimmer, shooting stars ───────
+  var starLayers = []; // for parallax + shimmer
+  var mouseParallax = {x:0, y:0, tx:0, ty:0};
 
-  // Twinkle vertex/fragment shaders — per-star phase offset drives opacity pulse
-  var twinkleVS = [
-    'attribute float phase;',
-    'attribute float sz;',
-    'uniform float time;',
-    'varying float vAlpha;',
-    'void main(){',
-    '  float pulse = 0.55 + 0.45 * abs(sin(time * 1.1 + phase));',
-    '  vAlpha = pulse;',
-    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);',
-    '  gl_PointSize = sz * (1.0 + 0.25 * sin(time * 0.7 + phase));',
-    '}'
-  ].join('\n');
-  var twinkleFS = [
-    'uniform vec3 col;',
-    'varying float vAlpha;',
-    'void main(){',
-    '  float d = length(gl_PointCoord - 0.5) * 2.0;',
-    '  if(d > 1.0) discard;',
-    '  float soft = 1.0 - smoothstep(0.0, 1.0, d);',
-    '  gl_FragColor = vec4(col, vAlpha * soft);',
-    '}'
-  ].join('\n');
-
-  function mkTwinkleStars(n, rMin, rMax, baseSz, baseCol, layerIdx) {
-    var pos=[], phases=[], sizes=[];
+  // shimmerPhase: each layer twinkles at its own rate and phase
+  function mkStarLayer(n, rMin, rMax, size, baseOp, col, layerIdx, shimFreq, shimPhase) {
+    var v = [];
     for(var i=0;i<n;i++){
       var th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
       var r=rMin+Math.random()*(rMax-rMin);
-      pos.push(r*Math.sin(ph)*Math.cos(th), r*Math.cos(ph), r*Math.sin(ph)*Math.sin(th));
-      phases.push(Math.random()*Math.PI*2);
-      sizes.push(baseSz * (0.6 + Math.random()*0.8));
+      v.push(r*Math.sin(ph)*Math.cos(th), r*Math.cos(ph), r*Math.sin(ph)*Math.sin(th));
     }
     var geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
-    geo.setAttribute('phase',    new THREE.Float32BufferAttribute(phases,1));
-    geo.setAttribute('sz',       new THREE.Float32BufferAttribute(sizes,1));
-    var mat = PR
-      ? new THREE.PointsMaterial({color:baseCol, size:baseSz*0.7, transparent:true, opacity:0.5, sizeAttenuation:true, depthWrite:false})
-      : new THREE.ShaderMaterial({
-          uniforms: { time:{value:0}, col:{value:new THREE.Color(baseCol)} },
-          vertexShader: twinkleVS,
-          fragmentShader: twinkleFS,
-          transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
-        });
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(v,3));
+    var mat = new THREE.PointsMaterial({color:col, size:size, transparent:true, opacity:baseOp,
+      sizeAttenuation:true, depthWrite:false});
     var pts = new THREE.Points(geo, mat);
-    pts.userData.layerIdx = layerIdx; // parallax depth index 0=far,1=mid,2=near
-    pts.userData.isTwinkle = !PR;
+    pts.userData.layerIdx  = layerIdx;
+    pts.userData.baseOp    = baseOp;
+    pts.userData.shimFreq  = shimFreq;  // radians/sec
+    pts.userData.shimPhase = shimPhase;
+    pts.userData.shimAmp   = PR ? 0 : 0.35; // no shimmer when reduced-motion
     scene.add(pts);
     starLayers.push(pts);
     return pts;
   }
 
-  mkTwinkleStars(1200, 10, 16, 1.4, 0xaabbdd, 0); // far — slowest parallax
-  mkTwinkleStars(380,   7, 12, 1.9, 0xddeeff, 1); // mid
-  mkTwinkleStars(80,    5,  9, 2.8, 0xffffff, 2); // near — fastest parallax
-  mkTwinkleStars(28,    5,  8, 3.4, 0xffd0a0, 2); // near warm accent
+  // 4 layers: far dim blue → near bright white, each at different shimmer freq
+  mkStarLayer(1400, 8, 14, 0.016, 0.30, 0xaabbdd, 0, 0.55, 0.0);
+  mkStarLayer(400,  6, 12, 0.028, 0.55, 0xddeeff, 1, 0.82, 1.1);
+  mkStarLayer(80,   5,  9, 0.048, 0.78, 0xffffff, 2, 1.20, 2.3);
+  mkStarLayer(30,   5,  8, 0.058, 0.88, 0xffd0a0, 2, 0.68, 4.1); // warm accent
 
   // ── shooting stars ────────────────────────────────────────────────────────
   var shooters = []; // active streak objects
@@ -634,18 +605,21 @@ document.addEventListener('DOMContentLoaded', function() {
     globe.rotation.x+=(tRotX-globe.rotation.x)*0.055;
     globe.rotation.z=Math.sin(dt*0.00008)*0.03;
 
-    // twinkle + parallax for star layers
-    if(!PR){
-      mouseParallax.x += (mouseParallax.tx - mouseParallax.x) * 0.04;
-      mouseParallax.y += (mouseParallax.ty - mouseParallax.y) * 0.04;
-      starLayers.forEach(function(layer){
-        if(layer.userData.isTwinkle && layer.material.uniforms){
-          layer.material.uniforms.time.value = ts;
-        }
-        var depth = PARALLAX_DEPTHS[layer.userData.layerIdx] || 0.02;
-        layer.position.x = mouseParallax.x * depth;
-        layer.position.y = -mouseParallax.y * depth;
-      });
+    // shimmer + parallax for star layers
+    mouseParallax.x += (mouseParallax.tx - mouseParallax.x) * 0.04;
+    mouseParallax.y += (mouseParallax.ty - mouseParallax.y) * 0.04;
+    starLayers.forEach(function(layer){
+      // per-layer opacity shimmer (staggered freqs → never all blink together)
+      var amp = layer.userData.shimAmp || 0;
+      if(amp > 0){
+        var op = layer.userData.baseOp + amp * Math.sin(ts * layer.userData.shimFreq + layer.userData.shimPhase);
+        layer.material.opacity = Math.max(0.05, Math.min(1, op));
+      }
+      // parallax shift
+      var depth = PARALLAX_DEPTHS[layer.userData.layerIdx] || 0.02;
+      layer.position.x = mouseParallax.x * depth;
+      layer.position.y = -mouseParallax.y * depth;
+    });
 
       // shooting stars
       if(t > nextShooterTime){ spawnShooter(); nextShooterTime = t + 6000 + Math.random()*9000; }
@@ -667,7 +641,6 @@ document.addEventListener('DOMContentLoaded', function() {
         shooterMat[si].opacity = op * 0.85;
         if(sh.t >= 1){ sh.active=false; shooterMat[si].opacity=0; }
       });
-    }
 
     // traveling pulses along arcs (globe-local space)
     arcData.forEach(function(arc){
