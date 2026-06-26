@@ -184,6 +184,8 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 
 <script>
 // ── GLOBE INIT ─────────────────────────────────────────────────────────────
+// Script is in <head>; canvas is in <body> — defer until DOM is ready.
+document.addEventListener('DOMContentLoaded', function() {
 (function() {
   var canvas  = document.getElementById('globe-canvas');
   var svgFb   = document.getElementById('splash-svg');   // fallback
@@ -410,6 +412,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
   if (!prefersReduced) animate();
   else renderer.render(scene, camera); // single static frame for reduced-motion
 })();
+}); // DOMContentLoaded
 </script>
 
 <!-- Cinematic transition burst ring — positioned by JS on click -->
