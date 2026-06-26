@@ -110,6 +110,28 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 #map-counter{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);z-index:600;background:rgba(14,21,37,.82);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:20px;padding:5px 16px;font-size:11px;color:var(--muted);pointer-events:none;white-space:nowrap;transition:opacity .3s}
 #map-counter b{color:var(--ink)}
 
+/* === HERO STATS COUNTERS === */
+#hero-stats{display:flex;justify-content:center;gap:32px;margin:0 0 28px;padding:18px 0 20px;border-top:1px solid rgba(255,255,255,0.08);border-bottom:1px solid rgba(255,255,255,0.08)}
+.hstat{text-align:center}
+.hstat-n{display:block;font-family:'Inter',sans-serif;font-size:clamp(24px,4.5vw,34px);font-weight:700;color:#eef3fb;line-height:1;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.hstat-l{font-family:'Inter',sans-serif;font-size:10px;color:#4e6080;text-transform:uppercase;letter-spacing:1.1px;margin-top:5px}
+
+/* === HERO ROTATOR === */
+#hero-rotator{position:relative;height:52px;overflow:hidden;margin:0 0 16px}
+.rline{position:absolute;inset:0;font-family:'Inter',sans-serif;font-size:clamp(13px,1.9vw,15px);color:#9fb0cc;line-height:1.65;font-weight:400;margin:0;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .7s ease;text-align:center;padding:0 8px}
+.rline.active{opacity:1}
+
+/* === TOUR === */
+#tour-btn{position:absolute;top:14px;right:14px;z-index:620;font-family:'Inter',sans-serif;font-size:11px;font-weight:600;letter-spacing:.5px;padding:5px 13px;background:transparent;border:1px solid rgba(212,175,55,.45);color:rgba(212,175,55,.8);border-radius:20px;cursor:pointer;transition:all .2s}
+#tour-btn:hover{background:rgba(212,175,55,.1);border-color:#d4af37;color:#d4af37}
+#tour-overlay{position:absolute;bottom:52px;left:50%;z-index:620;background:rgba(10,16,30,.92);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:24px;padding:7px 14px;display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--muted);opacity:0;transform:translateX(-50%) translateY(6px);transition:opacity .3s,transform .3s;visibility:hidden;pointer-events:none}
+#tour-overlay.active{opacity:1;transform:translateX(-50%) translateY(0);visibility:visible;pointer-events:auto}
+#tour-progress{color:var(--ink);font-weight:700;min-width:32px;font-size:12px}
+#tour-next,#tour-end{background:none;border:1px solid var(--line);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:12px;cursor:pointer;font-family:'Inter',sans-serif;transition:all .15s}
+#tour-next{color:#7ab4fa;border-color:rgba(59,130,246,.5)}
+#tour-next:hover{background:rgba(59,130,246,.12)}
+#tour-end:hover{border-color:var(--crit);color:var(--crit)}
+
 /* sidebar scroll-reveal */
 .block{opacity:0;transform:translateY(10px);transition:opacity .35s ease,transform .35s ease}
 .block.revealed{opacity:1;transform:none}
@@ -891,7 +913,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
   <div id="splash-copy">
     <h1>Small Communities.<br>Outsized Stakes.</h1>
-    <p>A strategic view of vulnerable Jewish communities across the North American federation landscape — population, security exposure, growth trajectory, and value scores in one interactive map.</p>
+    <div id="hero-rotator">
+      <p class="rline active">A strategic view of vulnerable Jewish communities across North America.</p>
+      <p class="rline">communities at critical risk &mdash; right now.</p>
+      <p class="rline">million Jews in regions with shrinking federation capacity.</p>
+      <p class="rline">One map. Every vulnerable community. Full strategic context.</p>
+    </div>
+    <div id="hero-stats">
+      <div class="hstat"><span class="hstat-n" id="hc-crit">—</span><div class="hstat-l">critical priority</div></div>
+      <div class="hstat"><span class="hstat-n" id="hc-pop">—</span><div class="hstat-l">critical &amp; high risk</div></div>
+      <div class="hstat"><span class="hstat-n" id="hc-states">—</span><div class="hstat-l">states &amp; provinces</div></div>
+    </div>
     <button id="splash-cta">Enter the Atlas ↓</button>
     <div id="logo-strip">
       <div class="logo-items">
@@ -1048,6 +1080,12 @@ document.addEventListener('DOMContentLoaded', function() {
   <div id="mapwrap">
     <div class="maptitle" id="maptitle">Jewish population density &mdash; <b>where American Jewry concentrates</b></div>
     <div id="map"></div>
+    <button id="tour-btn">&#9654; Tour</button>
+    <div id="tour-overlay">
+      <span id="tour-progress">1 / 5</span>
+      <button id="tour-next">Next &#8594;</button>
+      <button id="tour-end">&#215; End tour</button>
+    </div>
     <div id="map-counter"></div>
     <div id="detail-panel">
       <div id="detail-hdr">
@@ -1092,12 +1130,17 @@ function markerColor(d){ return state.view==='security'?adlColor(d):state.view==
 function fmt(n){ return n.toLocaleString('en-US'); }
 function fmtK(n){ return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'k':n; }
 
-function filtered(){
+function filteredBase(){
   return DATA.filter(d=>{
     if(state.tier && d.size_tier!==state.tier) return false;
     if(state.scope && d.territory_scope!==state.scope) return false;
     if(state.country && d.country!==state.country) return false;
     if(!state.prios.has(d.priority)) return false;
+    return true;
+  });
+}
+function filtered(){
+  return filteredBase().filter(d=>{
     if(state.q){ const q=state.q.toLowerCase();
       if(!((d.name+' '+d.city+' '+d.state).toLowerCase().includes(q))) return false; }
     return true;
@@ -1141,17 +1184,22 @@ function drawHeat(rows){
   heatLayer=L.heatLayer(pts,{radius:30,blur:22,maxZoom:9,max:max,minOpacity:0.25,
     gradient:{0.0:'#081830',0.25:'#0f3a6e',0.55:'#2a7fd4',0.78:'#f07820',1.0:'#e23b3b'}}).addTo(map);
 }
-function drawMarkers(rows){
+function drawMarkers(rows, allRows){
+  // allRows: base-filtered set (no search); rows: search-filtered subset
+  // When allRows provided, show all allRows but dim non-matches
+  const toRender = allRows || rows;
+  const searchActive = !!(allRows && state.q);
   markerLayer.clearLayers();
   if(state.view==='heat') return;
-  rows.forEach(d=>{
+  toRender.forEach(d=>{
+    const isSearchMatch = !searchActive || rows.includes(d);
     const color = markerColor(d);
     const r = radius(d.jewish_pop);
     const dot = r * 2;
-    const size = dot + 18; // padding for pulse ring
-    const needPulse = d.priority==='Critical' || d.priority==='High';
+    const size = dot + 18;
+    const needPulse = (d.priority==='Critical' || d.priority==='High');
     const speed = d.priority==='Critical' ? '1.1s' : '1.9s';
-    const dimmed = state.selected && state.selected !== d;
+    const dimmed = (state.selected && state.selected !== d) || !isSearchMatch;
     const pulse = (needPulse && !dimmed)
       ? `<div class="pulse-ring" style="--ring-color:${color};--ring-speed:${speed}"></div>` : '';
     const off = (size - dot) / 2;
@@ -1175,6 +1223,22 @@ function drawMarkers(rows){
     m.on('click', ()=>selectCommunity(d));
     markerLayer.addLayer(m);
   });
+}
+
+let _transAnimating = false;
+function transitionMarkers(rows, allRows){
+  const pane = document.querySelector('.leaflet-marker-pane');
+  if(!pane || _transAnimating){ drawMarkers(rows, allRows); return; }
+  _transAnimating = true;
+  pane.style.transition = 'opacity 0.14s ease';
+  pane.style.opacity = '0';
+  setTimeout(()=>{
+    drawMarkers(rows, allRows);
+    requestAnimationFrame(()=>{
+      pane.style.opacity = '1';
+      setTimeout(()=>{ _transAnimating = false; }, 180);
+    });
+  }, 150);
 }
 
 function updateStats(rows){
@@ -1217,7 +1281,8 @@ function titleFor(){
 }
 function render(){
   const rows=filtered();
-  drawHeat(rows); drawMarkers(rows); drawSCN();
+  const allRows=state.q ? filteredBase() : null;
+  drawHeat(rows); transitionMarkers(rows,allRows); drawSCN();
   updateStats(rows); updateList(rows);
   document.getElementById('maptitle').innerHTML=titleFor();
   updateMapCounter();
@@ -1255,6 +1320,46 @@ function drawSCN(){
   scnLayer.addTo(map);
 }
 
+// === MINI CHART (sparkline + vulnerability meter) ===
+function miniChart(d){
+  const pCol = PCOL[d.priority]||'#555';
+  const meter = `<div style="margin:12px 0 8px">
+    <div style="font-size:9px;color:var(--muted);letter-spacing:.8px;font-weight:600;margin-bottom:5px">VULNERABILITY SCORE</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="flex:1;background:#141d30;border-radius:4px;height:7px;overflow:hidden">
+        <div style="background:${pCol};height:100%;width:${d.vulnerability}%;border-radius:4px;box-shadow:0 0 6px ${pCol}55"></div>
+      </div>
+      <span style="font-size:12px;font-weight:700;color:var(--ink);min-width:26px">${d.vulnerability}</span>
+    </div>
+  </div>`;
+  if(d.adl_incidents_2024==null) return meter;
+  const v24 = d.adl_incidents_2024||0;
+  const v25 = d.adl_incidents_2025;
+  const hasV25 = v25!=null;
+  const maxV = Math.max(v24, hasV25?v25:0, 1);
+  const H = 38;
+  const h24 = Math.max(4, Math.round(v24/maxV*H));
+  const h25 = hasV25 ? Math.max(4, Math.round(v25/maxV*H)) : 0;
+  const c25 = hasV25&&v25>v24 ? 'var(--crit)' : 'var(--low)';
+  const glow25 = hasV25&&v25>v24 ? ';box-shadow:0 0 8px rgba(226,59,59,.45)' : '';
+  const bars = `<div style="margin:8px 0 12px">
+    <div style="font-size:9px;color:var(--muted);letter-spacing:.8px;font-weight:600;margin-bottom:6px">ADL INCIDENTS — STATE TREND</div>
+    <div style="display:flex;align-items:flex-end;gap:4px;height:${H+30}px">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;width:44px">
+        <div style="width:26px;height:${h24}px;background:#3b82f6;border-radius:3px 3px 0 0"></div>
+        <div style="font-size:10px;font-weight:700;color:var(--ink)">${v24}</div>
+        <div style="font-size:9px;color:var(--muted)">2024</div>
+      </div>
+      ${hasV25?`<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:2px;width:44px">
+        <div style="width:26px;height:${h25}px;background:${c25};border-radius:3px 3px 0 0${glow25}"></div>
+        <div style="font-size:10px;font-weight:700;color:${c25}">${v25} ${v25>v24?'▲':'▼'}</div>
+        <div style="font-size:9px;color:var(--muted)">2025</div>
+      </div>`:''}
+    </div>
+  </div>`;
+  return meter + bars;
+}
+
 // === SELECTION + PANEL ===
 function panelHTML(d){
   const sec = d.head_of_security
@@ -1269,6 +1374,7 @@ function panelHTML(d){
     : '<span style="color:var(--muted)">pending</span>';
   return `<h3>${d.name}</h3>
   <div class="loc">${d.city}, ${d.state} &middot; ${SCOPE_LBL[d.territory_scope]||d.territory_scope}</div>
+  ${miniChart(d)}
   <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px">
     <tr><td class="k">Jewish pop</td><td><b>${fmt(d.jewish_pop)}</b> <span class="srctag ${d.pop_source==='Federation-provided'?'src-fed':'src-est'}">${d.pop_source}</span></td></tr>
     <tr><td class="k">Catchment</td><td>${fmt(d.total_pop)} total &middot; ${d.density_per_1000}/1k density</td></tr>
@@ -1293,13 +1399,17 @@ function selectCommunity(d){
   pill.style.background = PCOL[d.priority]||'#555';
   document.getElementById('detail-content').innerHTML = panelHTML(d);
   document.getElementById('detail-panel').classList.add('open');
-  drawMarkers(filtered());
+  drawSCNArc(d);
+  const rows=filtered(), allRows=state.q?filteredBase():null;
+  drawMarkers(rows, allRows);
 }
 
 function closePanel(){
   state.selected = null;
   document.getElementById('detail-panel').classList.remove('open');
-  drawMarkers(filtered());
+  scnArcLayer.clearLayers();
+  const rows=filtered(), allRows=state.q?filteredBase():null;
+  drawMarkers(rows, allRows);
 }
 document.getElementById('detail-close').onclick = closePanel;
 
@@ -1311,6 +1421,95 @@ function updateMapCounter(){
   if(el) el.innerHTML = `<b>${vis.length}</b> communities in view &nbsp;·&nbsp; <b>${fmtK(vis.reduce((a,b)=>a+b.jewish_pop,0))}</b> Jews`;
 }
 map.on('moveend zoomend', updateMapCounter);
+
+// === SCN NEAREST-HUB ARCS ===
+const HUB_COORDS={
+  'Dallas, TX':[32.7767,-96.797],'Chicago, IL':[41.8781,-87.6298],
+  'Atlanta, GA':[33.749,-84.388],'Denver, CO':[39.7392,-104.9903],
+  'Phoenix, AZ':[33.4484,-112.074],'Los Angeles, CA':[34.0522,-118.2437],
+  'San Francisco, CA':[37.7749,-122.4194],'Seattle, WA':[47.6062,-122.3321],
+  'Minneapolis, MN':[44.9778,-93.265],'St. Louis, MO':[38.627,-90.1994],
+  'Kansas City, MO':[39.0997,-94.5786],'Indianapolis, IN':[39.7684,-86.1581],
+  'Cincinnati, OH':[39.1031,-84.512],'Cleveland, OH':[41.4993,-81.6944],
+  'Pittsburgh, PA':[40.4406,-79.9959],'Charlotte, NC':[35.2271,-80.8431],
+  'Nashville, TN':[36.1627,-86.7816],'Louisville, KY':[38.2527,-85.7585],
+  'Memphis, TN':[35.1495,-90.049],'New Orleans, LA':[29.9511,-90.0715],
+  'Houston, TX':[29.7604,-95.3698],'San Antonio, TX':[29.4241,-98.4936],
+  'Austin, TX':[30.2672,-97.7431],'Omaha, NE':[41.2565,-95.9345],
+  'Milwaukee, WI':[43.0389,-87.9065],'Hartford, CT':[41.7658,-72.6851],
+  'Providence, RI':[41.824,-71.4128],'Portland, ME':[43.6591,-70.2568],
+  'Buffalo, NY':[42.8864,-78.8784],'Rochester, NY':[43.1566,-77.6088],
+  'Albany, NY':[42.6526,-73.7562],'Albuquerque, NM':[35.0844,-106.6504],
+  'Salt Lake City, UT':[40.7608,-111.891],'Portland, OR':[45.5051,-122.675],
+  'Detroit, MI':[42.3314,-83.0458],'Richmond, VA':[37.5407,-77.4361],
+  'Norfolk, VA':[36.8508,-76.2859],'Raleigh, NC':[35.7796,-78.6382],
+  'Columbia, SC':[34.0007,-81.0348],'Jacksonville, FL':[30.3322,-81.6557],
+  'Tampa, FL':[27.9506,-82.4572],'Boca Raton, FL':[26.3683,-80.1289],
+  'Tucson, AZ':[32.2226,-110.9747],'Las Vegas, NV':[36.1699,-115.1398],
+  'Sacramento, CA':[38.5816,-121.4944],'San Diego, CA':[32.7157,-117.1611]
+};
+let scnArcLayer=L.layerGroup().addTo(map);
+function drawSCNArc(d){
+  scnArcLayer.clearLayers();
+  if(!d||d.is_hub||!d.nearest_hub) return;
+  const hub=HUB_COORDS[d.nearest_hub];
+  if(!hub) return;
+  const from=[d.lat,d.lon], to=hub;
+  const pts=[];
+  const N=50;
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    const lat=from[0]+(to[0]-from[0])*t;
+    const lon=from[1]+(to[1]-from[1])*t;
+    const arc=Math.sin(t*Math.PI)*Math.abs(to[1]-from[1])*0.14;
+    pts.push([lat+arc*0.55,lon]);
+  }
+  L.polyline(pts,{color:'#38bdf8',weight:1.5,opacity:0.55,dashArray:'5,8'}).addTo(scnArcLayer);
+  const hubDot=L.divIcon({
+    html:`<div style="width:10px;height:10px;border-radius:50%;background:#38bdf8;border:2px solid #0a0f1a;box-shadow:0 0 10px rgba(56,189,248,.7)"></div>`,
+    className:'',iconSize:[10,10],iconAnchor:[5,5]
+  });
+  L.marker(to,{icon:hubDot})
+   .bindTooltip('Nearest hub: '+d.nearest_hub+
+     (d.isolation_mi?' · ~'+fmt(d.isolation_mi)+' mi':''),{direction:'top',opacity:0.9})
+   .addTo(scnArcLayer);
+}
+
+// === GUIDED TOUR ===
+const TOUR_STOPS=DATA.filter(d=>d.priority==='Critical')
+  .sort((a,b)=>b.vulnerability-a.vulnerability).slice(0,5);
+const tourState={active:false,index:0,timer:null};
+function startTour(){
+  tourState.active=true; tourState.index=0;
+  document.getElementById('tour-overlay').classList.add('active');
+  document.getElementById('tour-btn').textContent='⏹ Stop';
+  advanceTour();
+}
+function advanceTour(){
+  if(!tourState.active) return;
+  const stop=TOUR_STOPS[tourState.index];
+  selectCommunity(stop);
+  document.getElementById('tour-progress').textContent=
+    (tourState.index+1)+' / '+TOUR_STOPS.length;
+  clearTimeout(tourState.timer);
+  if(tourState.index<TOUR_STOPS.length-1)
+    tourState.timer=setTimeout(()=>{ tourState.index++; advanceTour(); },4800);
+  else
+    tourState.timer=setTimeout(endTour,4800);
+}
+function endTour(){
+  tourState.active=false; clearTimeout(tourState.timer);
+  document.getElementById('tour-overlay').classList.remove('active');
+  document.getElementById('tour-btn').textContent='▶ Tour';
+  closePanel();
+}
+document.getElementById('tour-btn').onclick=()=>tourState.active?endTour():startTour();
+document.getElementById('tour-next').onclick=()=>{
+  clearTimeout(tourState.timer);
+  if(tourState.index<TOUR_STOPS.length-1){ tourState.index++; advanceTour(); }
+  else endTour();
+};
+document.getElementById('tour-end').onclick=endTour;
 
 // wire controls
 document.querySelectorAll('#viewseg button').forEach(b=>b.onclick=()=>{
@@ -1707,6 +1906,52 @@ function initMapEnhancements() {
   if (!el) return;
 
   var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ── Hero counters ─────────────────────────────────────────────────────────
+  (function initHeroCounters(){
+    var critCount  = DATA.filter(function(d){ return d.priority==='Critical'; }).length;
+    var atRiskCount= DATA.filter(function(d){ return d.priority==='Critical'||d.priority==='High'; }).length;
+    var stateCount = new Set(DATA.map(function(d){ return d.state; })).size;
+
+    function animCount(el, target, decimals, duration){
+      if(!el) return;
+      var start = null;
+      function step(ts){
+        if(!start) start=ts;
+        var t = Math.min((ts-start)/duration, 1);
+        var ease = 1-Math.pow(1-t,3);
+        el.textContent = decimals ? (ease*target).toFixed(1) : Math.round(ease*target);
+        if(t<1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // Start after the splash fade-in (~600ms)
+    setTimeout(function(){
+      animCount(document.getElementById('hc-crit'),   critCount,   0, 1400);
+      animCount(document.getElementById('hc-pop'),    atRiskCount, 0, 1600);
+      animCount(document.getElementById('hc-states'), stateCount,  0, 1200);
+    }, 620);
+  })();
+
+  // ── Rotating headline ─────────────────────────────────────────────────────
+  (function initRotator(){
+    var lines = document.querySelectorAll('.rline');
+    if(!lines.length) return;
+    // Update dynamic lines with real numbers
+    var critN = DATA.filter(function(d){ return d.priority==='Critical'; }).length;
+    var popM  = (DATA.filter(function(d){ return d.priority==='Critical'||d.priority==='High'; })
+      .reduce(function(a,b){ return a+b.jewish_pop; },0)/1e6).toFixed(1);
+    if(lines[1]) lines[1].textContent = critN+' communities at critical risk — right now.';
+    var atRiskN=DATA.filter(function(d){return d.priority==='Critical'||d.priority==='High';}).length;
+    if(lines[2]) lines[2].textContent = atRiskN+' communities at critical or high risk across '+new Set(DATA.map(function(d){return d.state;})).size+' states.';
+    var cur = 0;
+    setInterval(function(){
+      lines[cur].classList.remove('active');
+      cur = (cur+1) % lines.length;
+      lines[cur].classList.add('active');
+    }, 3200);
+  })();
 
   function revealMap() {
     if (app) app.classList.add('map-revealed');
