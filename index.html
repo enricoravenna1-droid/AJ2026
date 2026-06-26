@@ -251,13 +251,17 @@ document.addEventListener('DOMContentLoaded', function() {
   scene.add(makeStars(80,   5,  9, 0.048, 0.85, 0xffffff));
   scene.add(makeStars(30,   5,  8, 0.065, 0.95, 0xccddff));
 
-  // ── Lighting — dramatic terminator ────────────────────────────────────────
-  scene.add(new THREE.AmbientLight(0x0d1a33, 0.55));
-  var sun = new THREE.DirectionalLight(0xaac8ff, 1.6);
+  // ── Lighting — bright enough to read against space black ─────────────────
+  scene.add(new THREE.AmbientLight(0x223355, 1.4)); // stronger ambient so dark-side ocean isn't invisible
+  var sun = new THREE.DirectionalLight(0xccdcff, 2.0);
   sun.position.set(3.5, 1.5, 2.5);
   scene.add(sun);
-  scene.add(Object.assign(new THREE.DirectionalLight(0x0a1830, 0.2), { position: new THREE.Vector3(-3, -1, -2) }));
-  scene.add(Object.assign(new THREE.DirectionalLight(0x3366aa, 0.4), { position: new THREE.Vector3(0, 4, -1) }));
+  var fillLight = new THREE.DirectionalLight(0x1a3a66, 0.6);
+  fillLight.position.set(-3, -1, -2);
+  scene.add(fillLight);
+  var rimLight2 = new THREE.DirectionalLight(0x4477bb, 0.5);
+  rimLight2.position.set(0, 4, -1);
+  scene.add(rimLight2);
 
   // ── Globe texture ─────────────────────────────────────────────────────────
   var TX = 1024, TY = 512;
@@ -265,7 +269,8 @@ document.addEventListener('DOMContentLoaded', function() {
   mapCvs.width = TX; mapCvs.height = TY;
   var mctx = mapCvs.getContext('2d');
   var og = mctx.createLinearGradient(0, 0, 0, TY);
-  og.addColorStop(0,   '#071428'); og.addColorStop(0.5, '#0a1f3e'); og.addColorStop(1, '#071428');
+  // Ocean: noticeably brighter than space background so globe reads clearly
+  og.addColorStop(0,   '#0f2d52'); og.addColorStop(0.5, '#163a68'); og.addColorStop(1, '#0f2d52');
   mctx.fillStyle = og; mctx.fillRect(0, 0, TX, TY);
   mctx.strokeStyle = 'rgba(30,60,100,0.28)'; mctx.lineWidth = 0.6;
   for (var gl = -180; gl <= 180; gl += 30) { var gx=(gl+180)/360*TX; mctx.beginPath(); mctx.moveTo(gx,0); mctx.lineTo(gx,TY); mctx.stroke(); }
