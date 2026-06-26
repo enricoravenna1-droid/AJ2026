@@ -16,6 +16,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <style>
 :root{
   --bg:#0e1525; --panel:#162033; --panel2:#1d2a42; --line:#2a3a59;
@@ -24,7 +25,8 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-#app{display:flex;height:100vh;overflow:hidden}
+#app{display:flex;height:100vh;overflow:hidden;opacity:0;transform:scale(0.97);transition:opacity .7s ease,transform .7s ease}
+#app.map-revealed{opacity:1;transform:none}
 /* Sidebar */
 #side{width:360px;min-width:360px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;height:100vh}
 #side header{padding:18px 20px 14px;border-bottom:1px solid var(--line)}
@@ -34,7 +36,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 .block{margin-bottom:20px}
 .block h2{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:0 0 9px;font-weight:700}
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 11px}
+.stat{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:10px 12px}
 .stat .n{font-size:20px;font-weight:700;line-height:1}
 .stat .l{font-size:10.5px;color:var(--muted);margin-top:3px}
 .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
@@ -50,8 +52,8 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 .chip[data-p="Moderate"].on{background:var(--mod);color:#3a3000} .chip[data-p="Lower"].on{background:var(--low);color:#063018}
 .legend-row{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);margin:5px 0}
 .dot{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid rgba(255,255,255,.3)}
-.note{font-size:10.5px;color:var(--muted);line-height:1.5;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:6px;padding:9px 11px}
-#list .item{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 11px;margin-bottom:7px;cursor:pointer;transition:border-color .12s}
+.note{font-size:10.5px;color:var(--muted);line-height:1.5;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:6px;padding:9px 12px}
+#list .item{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:7px;cursor:pointer;transition:border-color .12s}
 #list .item:hover{border-color:var(--accent)}
 #list .item .nm{font-size:12.5px;font-weight:600;line-height:1.3}
 #list .item .mt{font-size:10.5px;color:var(--muted);margin-top:3px;display:flex;justify-content:space-between;gap:8px}
@@ -98,9 +100,10 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 }
 
 /* === SPLASH === */
-#splash{position:fixed;inset:0;z-index:9999;background:#070c16;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;opacity:0;animation:splash-fadein .5s ease .1s forwards;transition:opacity .65s ease}
-#splash.gone{opacity:0;pointer-events:none}
+#splash{position:fixed;inset:0;z-index:9999;background:#070c16;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;opacity:0;animation:splash-fadein .5s ease .1s forwards}
+#splash.going{animation:splash-exit .65s ease-out forwards;pointer-events:none}
 @keyframes splash-fadein{to{opacity:1}}
+@keyframes splash-exit{to{opacity:0;transform:scale(1.05)}}
 #splash-svg{width:min(540px,90vw);height:auto;margin-bottom:32px}
 .na-fill{fill:rgba(20,32,58,.55);stroke:#2a3a59;stroke-width:1}
 .na-coast{fill:none;stroke:#2a3a59;stroke-width:.6;stroke-dasharray:3 4}
@@ -120,6 +123,29 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 @keyframes ember-glow{0%,100%{opacity:.25}42%{opacity:.65}72%{opacity:.35}}
 .scnrow{display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px}
 .scnrow input{accent-color:#38bdf8;width:15px;height:15px}
+
+/* === MAP ENHANCEMENTS === */
+/* Vignette frame over map */
+#mapwrap::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:400;background:radial-gradient(ellipse at 50% 50%,transparent 45%,rgba(7,12,22,.5) 100%)}
+
+/* City markers */
+.city-dot-wrap{position:relative;width:0;height:0}
+.city-pin{position:absolute;border-radius:50%;transform:translate(-50%,-50%);border:1.5px solid rgba(255,255,255,.35);opacity:0}
+.city-pin.anchor{width:5px;height:5px;background:#c8d8f0}
+.city-pin.focus{width:7px;height:7px;background:#d4af37;box-shadow:0 0 5px rgba(212,175,55,.5)}
+.city-pin.at-risk{width:7px;height:7px;background:#e23b3b;box-shadow:0 0 5px rgba(226,59,59,.45)}
+.city-pin.show{opacity:1}
+.city-label{position:absolute;white-space:nowrap;top:-6px;pointer-events:none;font-family:'Inter',sans-serif;font-size:9.5px;font-weight:600;color:#eef3fb;line-height:1.3;text-shadow:0 1px 4px rgba(0,0,0,.95),0 0 8px rgba(0,0,0,.8);opacity:0}
+.city-label.right{left:10px}
+.city-label.left{right:10px;text-align:right}
+.city-label .city-sub{font-size:8px;color:#9fb0cc;font-weight:400;display:block}
+.city-label.show{opacity:1}
+@media(prefers-reduced-motion:no-preference){
+  .city-pin.show{animation:pin-pop .22s ease-out forwards}
+  .city-label.show{animation:label-pop .22s ease-out forwards}
+}
+@keyframes pin-pop{from{opacity:0;transform:translate(-50%,-50%) scale(0)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes label-pop{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
@@ -220,7 +246,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
         </div>
       </div>
 
-      <div class="block" style="background:linear-gradient(180deg,#1d2a42 0%,#16223a 100%);border:1px solid #2a3a59">
+      <div class="block" style="background:linear-gradient(180deg,#1d2a42 0%,#16223a 100%);border:1px solid #2a3a59;border-radius:9px;padding:12px">
         <h2>ADL 2025 headline</h2>
         <div class="legend-row" style="font-size:13px;line-height:1.45"><b>6,274 antisemitic incidents</b> nationwide in 2025 &mdash; <b>33% lower than 2024</b> but the <b>3rd-highest year on record</b> since ADL began tracking in 1979.</div>
         <div class="legend-row" style="margin-top:6px;font-size:13px;line-height:1.45"><b style="color:var(--crit)">Assaults still rose.</b> Three Jewish people were murdered (DC Capital Jewish Museum, Boulder Run for Their Lives, PA Governor&rsquo;s residence firebombing). 300+ assault victims.</div>
@@ -537,6 +563,112 @@ render();
 </script>
 
 <script>
+// ─────────────────────────────────────────────
+// CITY MARKERS — edit this array to add/remove cities.
+// Fields: name, state, lat, lon
+//   tier:  "anchor" (major city, small dot) | "focus" (SCN/federation focus, gold) | "at-risk" (small community, red)
+//   side:  "right" | "left"  — which side of the pin the label appears on
+//   note:  optional short annotation shown under the city name
+// ─────────────────────────────────────────────
+const CITY_MARKERS = [
+  // Anchor cities — geographic orientation
+  { name:"New York",       state:"NY", lat:40.71,  lon:-74.00,  tier:"anchor",  side:"right" },
+  { name:"Los Angeles",    state:"CA", lat:34.05,  lon:-118.24, tier:"anchor",  side:"left"  },
+  { name:"Chicago",        state:"IL", lat:41.88,  lon:-87.63,  tier:"anchor",  side:"right" },
+  { name:"Miami",          state:"FL", lat:25.77,  lon:-80.19,  tier:"anchor",  side:"right" },
+  { name:"Houston",        state:"TX", lat:29.76,  lon:-95.37,  tier:"anchor",  side:"left"  },
+  { name:"Toronto",        state:"ON", lat:43.65,  lon:-79.38,  tier:"anchor",  side:"right" },
+  // Federation / SCN focus communities
+  { name:"Denver",         state:"CO", lat:39.74,  lon:-104.99, tier:"focus",   side:"right" },
+  { name:"Nashville",      state:"TN", lat:36.17,  lon:-86.78,  tier:"focus",   side:"right" },
+  { name:"Salt Lake City", state:"UT", lat:40.76,  lon:-111.89, tier:"focus",   side:"left"  },
+  { name:"Oklahoma City",  state:"OK", lat:35.47,  lon:-97.52,  tier:"focus",   side:"left"  },
+  { name:"Little Rock",    state:"AR", lat:34.75,  lon:-92.29,  tier:"focus",   side:"right", note:"JFAR" },
+  { name:"Albuquerque",    state:"NM", lat:35.08,  lon:-106.65, tier:"focus",   side:"left"  },
+  { name:"El Paso",        state:"TX", lat:31.76,  lon:-106.49, tier:"focus",   side:"left"  },
+  // Small / at-risk communities
+  { name:"Fargo",          state:"ND", lat:46.88,  lon:-96.79,  tier:"at-risk", side:"right" },
+  { name:"Billings",       state:"MT", lat:45.78,  lon:-108.50, tier:"at-risk", side:"right" },
+  { name:"Cheyenne",       state:"WY", lat:41.14,  lon:-104.82, tier:"at-risk", side:"right" },
+  { name:"Baton Rouge",    state:"LA", lat:30.45,  lon:-91.15,  tier:"at-risk", side:"right" },
+  { name:"Punta Gorda",    state:"FL", lat:26.93,  lon:-82.04,  tier:"at-risk", side:"left",  note:"Chabad firebombed 2025" },
+  { name:"Lexington",      state:"KY", lat:38.04,  lon:-84.50,  tier:"at-risk", side:"right" },
+  { name:"Sioux Falls",    state:"SD", lat:43.55,  lon:-96.73,  tier:"at-risk", side:"right" },
+  { name:"Augusta",        state:"ME", lat:44.31,  lon:-69.78,  tier:"at-risk", side:"right" },
+  { name:"Tulsa",          state:"OK", lat:36.15,  lon:-95.99,  tier:"at-risk", side:"right" },
+];
+
+var cityLayer = L.layerGroup();
+var mapEnhancementsInit = false;
+
+function initMapEnhancements() {
+  if (mapEnhancementsInit) return;
+  mapEnhancementsInit = true;
+
+  var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // 1. Lazy-fetch US state outlines via TopoJSON (CDN, ~88KB, loaded only on reveal)
+  if (typeof topojson !== 'undefined') {
+    fetch('https://cdn.jsdelivr.net/npm/us-atlas@3/states-110m.json')
+      .then(function(r) { return r.json(); })
+      .then(function(topo) {
+        var geojson = topojson.feature(topo, topo.objects.states);
+        L.geoJSON(geojson, {
+          style: function() {
+            return {
+              fillOpacity: 0,
+              color: 'rgba(255,255,255,0.14)',
+              weight: 0.6,
+              interactive: false
+            };
+          },
+          interactive: false
+        }).addTo(map);
+      })
+      .catch(function() {});
+  }
+
+  // 2. City markers — staggered fade-in after map resolves
+  cityLayer.addTo(map);
+
+  CITY_MARKERS.forEach(function(c, i) {
+    var subText = c.state + (c.note ? ' · ' + c.note : '');
+    var html = '<div class="city-dot-wrap">'
+      + '<div class="city-pin ' + c.tier + '"></div>'
+      + '<div class="city-label ' + c.side + '">'
+      + c.name
+      + '<span class="city-sub">' + subText + '</span>'
+      + '</div></div>';
+
+    var icon = L.divIcon({ html: html, className: '', iconSize: [0, 0], iconAnchor: [0, 0] });
+    var marker = L.marker([c.lat, c.lon], { icon: icon, interactive: false });
+
+    if (prefersReduced) {
+      marker.on('add', function() {
+        var el = marker.getElement();
+        if (!el) return;
+        el.querySelector('.city-pin').classList.add('show');
+        el.querySelector('.city-label').classList.add('show');
+      });
+      cityLayer.addLayer(marker);
+    } else {
+      setTimeout(function() {
+        marker.on('add', function() {
+          var el = marker.getElement();
+          if (!el) return;
+          setTimeout(function() {
+            el.querySelector('.city-pin').classList.add('show');
+            el.querySelector('.city-label').classList.add('show');
+          }, 30);
+        });
+        cityLayer.addLayer(marker);
+      }, i * 50);
+    }
+  });
+}
+</script>
+
+<script>
 // Sidebar scroll-reveal via IntersectionObserver
 (function(){
   if(!('IntersectionObserver' in window)) {
@@ -625,16 +757,28 @@ render();
 (function(){
   var el = document.getElementById('splash');
   var btn = document.getElementById('splash-cta');
+  var app = document.getElementById('app');
   if(!el) return;
+
+  function revealMap() {
+    if (app) app.classList.add('map-revealed');
+    initMapEnhancements();
+  }
+
   if(sessionStorage.getItem('aj2026-splash')){
     el.style.display = 'none';
+    revealMap();
     return;
   }
+
   function dismiss(){
-    el.classList.add('gone');
-    setTimeout(function(){ el.style.display = 'none'; }, 700);
     sessionStorage.setItem('aj2026-splash', '1');
+    el.classList.add('going');
+    // Start map reveal slightly before splash fully gone — overlapping crossfade
+    setTimeout(revealMap, 150);
+    setTimeout(function(){ el.style.display = 'none'; }, 700);
   }
+
   btn.addEventListener('click', dismiss);
   btn.addEventListener('keydown', function(e){
     if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); dismiss(); }
