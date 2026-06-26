@@ -105,15 +105,15 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 #splash.going{animation:splash-exit .65s ease-out forwards;pointer-events:none}
 @keyframes splash-fadein{to{opacity:1}}
 @keyframes splash-exit{to{opacity:0;transform:scale(1.05)}}
-/* Globe wrap — primary hero element */
-#globe-wrap{width:min(480px,86vw);height:min(480px,86vw);margin-bottom:28px;flex-shrink:0;position:relative}
-#globe-canvas{width:100%;height:100%;display:block;border-radius:50%;cursor:grab}
+/* Globe canvas — full-screen behind splash text */
+#globe-wrap{position:absolute;inset:0;z-index:0}
+#globe-canvas{width:100%;height:100%;display:block;cursor:grab}
 #globe-canvas:active{cursor:grabbing}
 /* SVG terrain map: hidden by default, globe JS shows it as WebGL fallback */
 #splash-svg{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(540px,90vw);height:auto}
 .na-fill{fill:url(#terrain-grad);stroke:#3a5a44;stroke-width:0.8;filter:url(#terrain-tex)}
 .na-coast{fill:none;stroke:#2a3a59;stroke-width:.6;stroke-dasharray:3 4}
-#splash-copy{text-align:center;max-width:540px}
+#splash-copy{position:relative;z-index:2;text-align:center;max-width:540px}
 #splash-copy h1{font-family:'Inter',sans-serif;font-size:clamp(26px,5vw,42px);font-weight:700;color:#eef3fb;margin:0 0 14px;letter-spacing:-.5px;line-height:1.12}
 #splash-copy p{font-family:'Inter',sans-serif;font-size:clamp(14px,2vw,16px);color:#9fb0cc;line-height:1.65;margin:0 0 36px;font-weight:400}
 #splash-cta{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:12px 34px;background:transparent;border:1px solid #3b82f6;color:#7ab4fa;border-radius:5px;cursor:pointer;transition:background .18s,color .18s}
@@ -223,8 +223,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var PR = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var THREE = window.THREE;
-  var W = 480, H = 480;
-  canvas.width = W; canvas.height = H;
+  var W = window.innerWidth, H = window.innerHeight;
 
   var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -232,8 +231,15 @@ document.addEventListener('DOMContentLoaded', function() {
   renderer.setClearColor(0x020508, 1);
 
   var scene  = new THREE.Scene();
-  var camera = new THREE.PerspectiveCamera(40, 1, 0.1, 60);
+  var camera = new THREE.PerspectiveCamera(40, W/H, 0.1, 60);
   camera.position.z = 2.55;
+
+  window.addEventListener('resize', function(){
+    W = window.innerWidth; H = window.innerHeight;
+    renderer.setSize(W, H);
+    camera.aspect = W/H;
+    camera.updateProjectionMatrix();
+  });
 
   // ── helpers ───────────────────────────────────────────────────────────────
   // lat/lon → 3-D point on sphere of radius r (globe-local space)
@@ -301,11 +307,11 @@ document.addEventListener('DOMContentLoaded', function() {
     return pts;
   }
 
-  // 4 layers: far dim blue → near bright white, each at different shimmer freq
-  mkStarLayer(1400, 8, 14, 0.016, 0.30, 0xaabbdd, 0, 0.55, 0.0);
-  mkStarLayer(400,  6, 12, 0.028, 0.55, 0xddeeff, 1, 0.82, 1.1);
-  mkStarLayer(80,   5,  9, 0.048, 0.78, 0xffffff, 2, 1.20, 2.3);
-  mkStarLayer(30,   5,  8, 0.058, 0.88, 0xffd0a0, 2, 0.68, 4.1); // warm accent
+  // 4 layers: far dim blue → near bright white. Full-screen canvas needs higher counts.
+  mkStarLayer(4000, 6, 14, 0.05,  0.55, 0xaabbdd, 0, 0.55, 0.0);
+  mkStarLayer(1500, 5, 12, 0.09,  0.70, 0xddeeff, 1, 0.82, 1.1);
+  mkStarLayer(350,  4,  9, 0.13,  0.88, 0xffffff, 2, 1.20, 2.3);
+  mkStarLayer(120,  4,  8, 0.18,  0.94, 0xffd0a0, 2, 0.68, 4.1); // warm accent
 
   // ── shooting stars ────────────────────────────────────────────────────────
   var shooters = []; // active streak objects
