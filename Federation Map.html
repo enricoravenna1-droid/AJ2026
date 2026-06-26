@@ -543,9 +543,8 @@ document.addEventListener('DOMContentLoaded', function() {
   new THREE.TextureLoader().load(bugURI,function(bugTex){
     var bugLight=new THREE.PointLight(0xd4af37,0.5,2.2); scene.add(bugLight);
     var bMat=new THREE.SpriteMaterial({map:bugTex,transparent:true,depthTest:true,depthWrite:false,sizeAttenuation:true});
-    bugSprite=new THREE.Sprite(bMat); bugSprite.scale.setScalar(0.44);
-    var lat=38,lon=-87,phi=(lon+180)/360*Math.PI*2,theta=(90-lat)/180*Math.PI,br=1.18;
-    bugLocalPos.set(-Math.cos(phi)*Math.sin(theta)*br, Math.cos(theta)*br, Math.sin(phi)*Math.sin(theta)*br);
+    bugSprite=new THREE.Sprite(bMat); bugSprite.scale.setScalar(0.18);
+    bugSprite.position.set(1.22, 0, 0); // starting position; orbit takes over in animate
     scene.add(bugSprite); bugSprite.userData.light=bugLight;
 
     // ── ember ring — 25 tight particles orbiting bug, amber→red ──────────────
@@ -555,7 +554,7 @@ document.addEventListener('DOMContentLoaded', function() {
     emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3).setUsage(THREE.DynamicDrawUsage));
     emberGeo.setAttribute('color',    new THREE.BufferAttribute(emberCol, 3).setUsage(THREE.DynamicDrawUsage));
     var emberMat = new THREE.PointsMaterial({
-      size:0.028, vertexColors:true, transparent:true, opacity:0.92,
+      size:0.016, vertexColors:true, transparent:true, opacity:0.88,
       sizeAttenuation:true, depthTest:true, depthWrite:false,
       map:glowTex('#ffffff',16), blending:THREE.AdditiveBlending, alphaTest:0.005
     });
@@ -581,6 +580,7 @@ document.addEventListener('DOMContentLoaded', function() {
       connGeos.push(geo); connLines.push(line); scene.add(line);
     });
     bugSprite.userData.connGeos = connGeos;
+    bugSprite.userData.connLines = connLines;
     bugSprite.userData.connCities = CONN_CITIES;
   });
 
@@ -662,14 +662,20 @@ document.addEventListener('DOMContentLoaded', function() {
       nd.sprite.scale.setScalar(s);
     });
 
-    // bug tracks globe in world space
+    // bug — slow tilted elliptical orbit in world space
+    // depthTest:true on the sprite gives free depth-correct occlusion:
+    // globe sphere (depthWrite:true) blocks the bug when it swings behind.
     if(bugSprite){
-      bugWorldTmp.copy(bugLocalPos); globe.localToWorld(bugWorldTmp);
-      bugWorldTmp.y+=Math.sin(dt*0.0009)*0.03;
+      var ot = dt * 0.00022; // ~28.6s per revolution
+      var OA=1.22, OB=1.10, OTILT=0.65;
+      var bwx = OA * Math.cos(ot);
+      var bwy = OB * Math.sin(ot) * Math.sin(OTILT) + Math.sin(dt*0.0009)*0.018;
+      var bwz = OB * Math.sin(ot) * Math.cos(OTILT);
+      bugWorldTmp.set(bwx, bwy, bwz);
       bugSprite.position.copy(bugWorldTmp);
       if(bugSprite.userData.light) bugSprite.userData.light.position.copy(bugWorldTmp);
 
-      // ember ring orbiting bug world position
+      // ember ring orbiting bug — also depth-tested, peek around globe silhouette
       var ep = bugSprite.userData.embers;
       if(ep) {
         var posArr = ep.geometry.attributes.position.array;
@@ -678,8 +684,8 @@ document.addEventListener('DOMContentLoaded', function() {
         for(var ei=0;ei<NUM_EMBERS;ei++){
           var baseAngle = (ei/NUM_EMBERS)*Math.PI*2;
           var orbitAngle = baseAngle + dt*0.0022;
-          var tiltAngle  = baseAngle*0.7 + dt*0.0009; // second orbit axis
-          var R2=0.075;
+          var tiltAngle  = baseAngle*0.7 + dt*0.0009;
+          var R2=0.05;
           posArr[ei*3]   = bx + R2*Math.cos(orbitAngle)*Math.cos(tiltAngle);
           posArr[ei*3+1] = by + R2*Math.sin(orbitAngle);
           posArr[ei*3+2] = bz + R2*Math.cos(orbitAngle)*Math.sin(tiltAngle);
@@ -693,9 +699,12 @@ document.addEventListener('DOMContentLoaded', function() {
         ep.geometry.attributes.color.needsUpdate=true;
       }
 
-      // connector arcs bug → cities
+      // connector arcs bug → cities — fade out when bug swings behind globe
       var cGeos = bugSprite.userData.connGeos;
+      var cLines = bugSprite.userData.connLines;
       var cCities = bugSprite.userData.connCities;
+      var connOp = Math.max(0, Math.min(0.55, (bwz + 0.35) * 1.57));
+      if(cLines) cLines.forEach(function(l){ l.material.opacity = connOp; });
       if(cGeos && !PR) {
         var bugVec = bugWorldTmp.clone();
         cCities.forEach(function(city,ci){
