@@ -433,16 +433,53 @@ document.addEventListener('DOMContentLoaded', function() {
     new THREE.MeshBasicMaterial({color:0x071a44,transparent:true,opacity:0.05,side:THREE.BackSide,depthWrite:false,blending:THREE.AdditiveBlending})));
 
   // ── federation bug — scene-level sprite, tracked via localToWorld ─────────
+  var NUM_EMBERS = 25;
+  var ARC_PTS = 22;
   var bugSprite=null, bugLocalPos=new THREE.Vector3(), bugWorldTmp=new THREE.Vector3();
   var bugSVGstr='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720"><path fill="#d4af37" d="M667.39,338.71l-.17-2.19c-2.8-37.06-12.17-72.86-27.86-106.42-15.23-32.59-35.92-62.07-61.5-87.6-25.58-25.53-55.1-46.19-87.75-61.4-33.61-15.66-69.48-25.01-106.6-27.81-7.74-.59-15.66-.88-23.52-.88s-15.77,.3-23.51,.88c-37.12,2.8-72.99,12.15-106.6,27.81-32.65,15.21-62.17,35.86-87.75,61.4-25.58,25.53-46.27,55.01-61.5,87.6-15.68,33.56-25.05,69.36-27.86,106.42l-.17,2.19H0l.16-2.52C5.85,249.21,43.09,167.26,105.01,105.44,166.93,43.63,249.02,6.46,336.15,.78c7.9-.52,15.92-.78,23.85-.78s15.95,.26,23.85,.78c87.13,5.68,169.22,42.85,231.14,104.67,61.92,61.82,99.16,143.76,104.84,230.75l.16,2.52h-52.61Z"/><path fill="#b8860b" d="M360,720c-7.93,0-15.95-.26-23.85-.78-87.13-5.68-169.22-42.85-231.14-104.67C43.09,552.74,5.85,470.79,.16,383.81l-.16-2.52H52.61l.17,2.19c2.8,37.06,12.17,72.86,27.86,106.42,15.23,32.59,35.92,62.07,61.5,87.6,25.58,25.53,55.1,46.19,87.75,61.4,32.85,15.3,67.84,24.58,104.05,27.61v-43.13c-30.46-2.97-59.88-11.09-87.48-24.17-27.46-13.01-52.32-30.53-73.9-52.07-21.58-21.54-39.13-46.36-52.16-73.77-13.41-28.2-21.62-58.31-24.41-89.48l-.23-2.58h52.72l.23,2.11c2.65,24.18,9.4,47.51,20.04,69.34,10.36,21.26,24.14,40.54,40.94,57.32,16.81,16.78,36.13,30.53,57.42,40.88,21.08,10.24,43.55,16.86,66.83,19.7v-43.36c-17.56-2.7-34.49-8.13-50.35-16.13-16.07-8.11-30.7-18.69-43.48-31.45-12.78-12.76-23.38-27.36-31.5-43.4-8.33-16.45-13.87-34.04-16.46-52.3l-.38-2.7h53.12l.38,1.9c4.54,22.54,15.6,43.09,31.98,59.44,15.69,15.66,35.24,26.45,56.7,31.32v-92.65h52.13v92.65c21.46-4.87,41.02-15.66,56.7-31.32,16.38-16.35,27.43-36.9,31.98-59.44l.38-1.9h53.12l-.38,2.7c-2.59,18.26-8.13,35.85-16.46,52.3-8.13,16.04-18.73,30.65-31.5,43.4-12.78,12.76-27.41,23.34-43.48,31.45-15.86,8.01-32.79,13.43-50.35,16.13v43.36c23.28-2.84,45.75-9.46,66.83-19.7,21.29-10.34,40.61-24.1,57.42-40.88,16.81-16.78,30.58-36.06,40.94-57.32,10.64-21.83,17.38-45.16,20.04-69.34l.23-2.11h52.72l-.23,2.58c-2.79,31.18-11.01,61.28-24.41,89.48-13.04,27.41-30.58,52.24-52.16,73.77-21.58,21.54-46.44,39.06-73.9,52.07-27.6,13.08-57.02,21.2-87.48,24.17v43.13c36.21-3.03,71.21-12.31,104.05-27.61,32.65-15.21,62.17-35.86,87.75-61.4,25.58-25.53,46.27-55.01,61.5-87.6,15.68-33.56,25.05-69.36,27.86-106.42l.17-2.19h52.61l-.16,2.52c-5.69,86.99-42.92,168.93-104.84,230.75-61.92,61.82-144.01,98.99-231.14,104.67-7.9,.52-15.92,.78-23.85,.78Z"/><path fill="#d4af37" d="M571.53,338.71l-.23-2.11c-2.65-24.18-9.4-47.51-20.04-69.34-10.36-21.26-24.14-40.54-40.94-57.32-16.81-16.78-36.13-30.53-57.42-40.87-21.87-10.62-45.24-17.35-69.46-20-7.7-.85-15.59-1.28-23.44-1.28s-15.73,.43-23.43,1.28c-24.22,2.65-47.59,9.38-69.46,20-21.29,10.34-40.61,24.1-57.42,40.87-16.81,16.78-30.58,36.06-40.94,57.32-10.64,21.83-17.38,45.16-20.04,69.34l-.23,2.11h-52.72l.23-2.58c2.79-31.18,11.01-61.28,24.41-89.48,13.04-27.41,30.58-52.23,52.16-73.77,21.58-21.54,46.44-39.06,73.9-52.07,28.25-13.39,58.41-21.59,89.64-24.37,7.87-.71,15.91-1.06,23.9-1.06s16.03,.36,23.91,1.06c31.23,2.79,61.39,10.99,89.63,24.37,27.46,13.01,52.32,30.53,73.9,52.07,21.58,21.54,39.13,46.36,52.16,73.77,13.41,28.2,21.62,58.31,24.41,89.48l.23,2.58h-52.72Z"/><path fill="#d4af37" d="M398.02,287.42c0,5.71-.88,11.22-2.51,16.39-6.97,22.08-27.64,38.09-52.06,38.09-3.75,0-7.41-.38-10.95-1.1,8.7-6.09,14.39-16.18,14.39-27.59,0-8.41-3.09-16.1-8.19-22-.71-.82-1.46-1.61-2.25-2.36-8.66-9.64-13.92-22.38-13.92-36.35,0-5.71,.88-11.22,2.51-16.39,6.97-22.08,27.64-38.09,52.06-38.09,3.75,0,7.41,.38,10.95,1.1-8.7,6.09-14.39,16.18-14.39,27.59,0,8.41,3.09,16.1,8.19,22,.71,.82,1.46,1.61,2.25,2.36,8.66,9.64,13.92,22.38,13.92,36.35Z"/></svg>';
   var bugURI='data:image/svg+xml;base64,'+btoa(unescape(encodeURIComponent(bugSVGstr)));
   new THREE.TextureLoader().load(bugURI,function(bugTex){
     var bugLight=new THREE.PointLight(0xd4af37,0.5,2.2); scene.add(bugLight);
-    var bMat=new THREE.SpriteMaterial({map:bugTex,transparent:true,depthTest:false,depthWrite:false,sizeAttenuation:true});
+    var bMat=new THREE.SpriteMaterial({map:bugTex,transparent:true,depthTest:true,depthWrite:false,sizeAttenuation:true});
     bugSprite=new THREE.Sprite(bMat); bugSprite.scale.setScalar(0.44);
-    var lat=38,lon=-87,phi=(lon+180)/360*Math.PI*2,theta=(90-lat)/180*Math.PI,br=1.22;
+    var lat=38,lon=-87,phi=(lon+180)/360*Math.PI*2,theta=(90-lat)/180*Math.PI,br=1.18;
     bugLocalPos.set(-Math.cos(phi)*Math.sin(theta)*br, Math.cos(theta)*br, Math.sin(phi)*Math.sin(theta)*br);
     scene.add(bugSprite); bugSprite.userData.light=bugLight;
+
+    // ── ember ring — 25 tight particles orbiting bug, amber→red ──────────────
+    var emberPos = new Float32Array(NUM_EMBERS * 3);
+    var emberCol = new Float32Array(NUM_EMBERS * 3);
+    var emberGeo = new THREE.BufferGeometry();
+    emberGeo.setAttribute('position', new THREE.BufferAttribute(emberPos, 3).setUsage(THREE.DynamicDrawUsage));
+    emberGeo.setAttribute('color',    new THREE.BufferAttribute(emberCol, 3).setUsage(THREE.DynamicDrawUsage));
+    var emberMat = new THREE.PointsMaterial({
+      size:0.028, vertexColors:true, transparent:true, opacity:0.92,
+      sizeAttenuation:true, depthTest:true, depthWrite:false,
+      map:glowTex('#ffffff',16), blending:THREE.AdditiveBlending, alphaTest:0.005
+    });
+    var emberPoints = new THREE.Points(emberGeo, emberMat);
+    scene.add(emberPoints);
+    bugSprite.userData.embers = emberPoints;
+
+    // ── connector arcs — bug → 6 key cities, warm gold/orange ────────────────
+    var CONN_CITIES = [
+      {lat:34.75,lon:-92.29}, // Little Rock
+      {lat:36.17,lon:-86.78}, // Nashville
+      {lat:29.76,lon:-95.37}, // Houston
+      {lat:41.88,lon:-87.63}, // Chicago
+      {lat:39.74,lon:-104.99},// Denver
+      {lat:46.88,lon:-96.79}, // Fargo
+    ];
+    var connGeos = [], connLines = [];
+    CONN_CITIES.forEach(function() {
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ARC_PTS*3), 3).setUsage(THREE.DynamicDrawUsage));
+      var line = new THREE.Line(geo,
+        new THREE.LineBasicMaterial({color:0xd4881a, transparent:true, opacity:0.55, depthTest:false, depthWrite:false}));
+      connGeos.push(geo); connLines.push(line); scene.add(line);
+    });
+    bugSprite.userData.connGeos = connGeos;
+    bugSprite.userData.connCities = CONN_CITIES;
   });
 
   // ── interaction ───────────────────────────────────────────────────────────
@@ -488,6 +525,49 @@ document.addEventListener('DOMContentLoaded', function() {
       bugWorldTmp.y+=Math.sin(dt*0.0009)*0.03;
       bugSprite.position.copy(bugWorldTmp);
       if(bugSprite.userData.light) bugSprite.userData.light.position.copy(bugWorldTmp);
+
+      // ember ring orbiting bug world position
+      var ep = bugSprite.userData.embers;
+      if(ep) {
+        var posArr = ep.geometry.attributes.position.array;
+        var colArr = ep.geometry.attributes.color.array;
+        var bx=bugWorldTmp.x, by=bugWorldTmp.y, bz=bugWorldTmp.z;
+        for(var ei=0;ei<NUM_EMBERS;ei++){
+          var baseAngle = (ei/NUM_EMBERS)*Math.PI*2;
+          var orbitAngle = baseAngle + dt*0.0022;
+          var tiltAngle  = baseAngle*0.7 + dt*0.0009; // second orbit axis
+          var R2=0.075;
+          posArr[ei*3]   = bx + R2*Math.cos(orbitAngle)*Math.cos(tiltAngle);
+          posArr[ei*3+1] = by + R2*Math.sin(orbitAngle);
+          posArr[ei*3+2] = bz + R2*Math.cos(orbitAngle)*Math.sin(tiltAngle);
+          // amber #d4af37=(0.831,0.686,0.216) → red #8B1A1A=(0.545,0.102,0.102)
+          var mix = 0.5+0.5*Math.sin(dt*0.003+ei*0.88);
+          colArr[ei*3]   = 0.545+mix*(0.831-0.545);
+          colArr[ei*3+1] = 0.102+mix*(0.686-0.102);
+          colArr[ei*3+2] = 0.102+mix*(0.216-0.102);
+        }
+        ep.geometry.attributes.position.needsUpdate=true;
+        ep.geometry.attributes.color.needsUpdate=true;
+      }
+
+      // connector arcs bug → cities
+      var cGeos = bugSprite.userData.connGeos;
+      var cCities = bugSprite.userData.connCities;
+      if(cGeos && !PR) {
+        var bugVec = bugWorldTmp.clone();
+        cCities.forEach(function(city,ci){
+          var cityLocal = ll2v(city.lat,city.lon,1.003);
+          globe.localToWorld(cityLocal);
+          var mid = new THREE.Vector3().addVectors(bugVec,cityLocal).multiplyScalar(0.5);
+          mid.normalize().multiplyScalar(mid.length()+0.28);
+          var curve = new THREE.QuadraticBezierCurve3(bugVec,mid,cityLocal);
+          var pts = curve.getPoints(ARC_PTS-1);
+          var arr = cGeos[ci].attributes.position.array;
+          for(var pi=0;pi<pts.length;pi++){arr[pi*3]=pts[pi].x;arr[pi*3+1]=pts[pi].y;arr[pi*3+2]=pts[pi].z;}
+          cGeos[ci].attributes.position.needsUpdate=true;
+          cGeos[ci].setDrawRange(0,ARC_PTS);
+        });
+      }
     }
     renderer.render(scene,camera);
   }
