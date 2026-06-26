@@ -26,8 +26,8 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink)}
-#app{display:flex;height:100vh;overflow:hidden;opacity:0;transform:scale(0.97);transition:opacity .7s ease,transform .7s ease}
-#app.map-revealed{opacity:1;transform:none}
+#app{display:flex;height:100vh;overflow:hidden;opacity:0;transform:scale(0.97)}
+#app.map-revealed{opacity:1;transform:none;transition:opacity .9s cubic-bezier(0.34,1.2,0.64,1),transform .9s cubic-bezier(0.34,1.2,0.64,1)}
 /* Sidebar */
 #side{width:360px;min-width:360px;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;height:100vh}
 #side header{padding:18px 20px 14px;border-bottom:1px solid var(--line)}
@@ -124,19 +124,46 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 @keyframes cta-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.0)}60%{box-shadow:0 0 0 7px rgba(59,130,246,.18)}}
 
 /* === CINEMATIC TRANSITION === */
-/* Burst ring: expands from button center on click */
-#wipe-burst{display:none;position:fixed;z-index:10000;width:8px;height:8px;border-radius:50%;background:rgba(59,130,246,.18);border:1.5px solid rgba(59,130,246,.55);pointer-events:none;transform:translate(-50%,-50%)}
-#wipe-burst.firing{animation:burst-ring .65s ease-out forwards}
+/* Primary burst ring — tight pulse from button */
+#wipe-burst{display:none;position:fixed;z-index:10000;width:10px;height:10px;border-radius:50%;background:rgba(212,175,55,.22);border:1.5px solid rgba(212,175,55,.7);pointer-events:none;transform:translate(-50%,-50%)}
+#wipe-burst.firing{animation:burst-ring .9s cubic-bezier(0.22,1,0.36,1) forwards}
 @keyframes burst-ring{
-  0%  {width:8px;height:8px;opacity:1}
-  40% {width:72px;height:72px;opacity:.55}
-  100%{width:130px;height:130px;opacity:0}
+  0%  {width:10px;height:10px;opacity:1;border-color:rgba(212,175,55,.9)}
+  35% {width:140px;height:140px;opacity:.6;border-color:rgba(255,200,80,.4)}
+  100%{width:380px;height:380px;opacity:0;border-color:rgba(255,200,80,0)}
 }
+/* Secondary shockwave ring */
+#wipe-burst2{display:none;position:fixed;z-index:10000;width:10px;height:10px;border-radius:50%;border:1px solid rgba(255,255,255,.35);pointer-events:none;transform:translate(-50%,-50%)}
+#wipe-burst2.firing{animation:burst-ring2 1.1s cubic-bezier(0.16,1,0.3,1) .12s forwards}
+@keyframes burst-ring2{
+  0%  {width:10px;height:10px;opacity:.8}
+  100%{width:600px;height:600px;opacity:0}
+}
+/* Warm amber surge overlay — full-screen flash at transition peak */
+#surge-flash{display:none;position:fixed;inset:0;z-index:9998;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,rgba(212,140,20,.55) 0%,rgba(140,80,10,.28) 40%,transparent 70%)}
+#surge-flash.active{display:block;animation:surge-flash-anim 1.2s cubic-bezier(0.4,0,0.2,1) forwards}
+@keyframes surge-flash-anim{
+  0%  {opacity:0;transform:scale(0.5)}
+  28% {opacity:1;transform:scale(1)}
+  65% {opacity:.7;transform:scale(1.1)}
+  100%{opacity:0;transform:scale(1.4)}
+}
+/* Chromatic aberration pulse on canvas — brief split-channel flash */
+#globe-canvas.chroma{animation:chroma-pulse .4s cubic-bezier(0.4,0,0.2,1) forwards}
+@keyframes chroma-pulse{
+  0%  {filter:none}
+  20% {filter:drop-shadow(3px 0 0 rgba(255,0,80,.6)) drop-shadow(-3px 0 0 rgba(0,180,255,.5)) saturate(1.8)}
+  60% {filter:drop-shadow(1px 0 0 rgba(255,60,0,.3)) drop-shadow(-1px 0 0 rgba(0,120,255,.2)) saturate(1.2)}
+  100%{filter:none}
+}
+/* Canvas zoom-blur during transition */
+#globe-canvas.surge-zoom{transition:transform 0.7s cubic-bezier(0.4,0,0.2,1),opacity 0.5s cubic-bezier(0.4,0,0.2,1),filter 0.6s ease-out}
 /* Anticipation: button scale-down on click */
-.cta-press{animation:btn-press .2s ease-out forwards !important}
+.cta-press{animation:btn-press .25s cubic-bezier(0.34,1.56,0.64,1) forwards !important}
 @keyframes btn-press{
   0%  {transform:scale(1)}
-  45% {transform:scale(.88);box-shadow:0 0 0 12px rgba(59,130,246,.22)}
+  45% {transform:scale(.84);box-shadow:0 0 0 16px rgba(212,175,55,.18)}
   100%{transform:scale(1)}
 }
 
@@ -247,17 +274,114 @@ document.addEventListener('DOMContentLoaded', function() {
   scene.add(new THREE.Mesh(new THREE.SphereGeometry(30,32,32),
     new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(skyCvs),side:THREE.BackSide,depthWrite:false})));
 
-  // ── starfield — 4 layers ──────────────────────────────────────────────────
-  function mkStars(n,rMin,rMax,sz,op,col) {
-    var v=[];
-    for(var i=0;i<n;i++){var th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),r=rMin+Math.random()*(rMax-rMin);v.push(r*Math.sin(ph)*Math.cos(th),r*Math.cos(ph),r*Math.sin(ph)*Math.sin(th));}
-    var g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(v,3));
-    return new THREE.Points(g,new THREE.PointsMaterial({color:col,size:sz,transparent:true,opacity:op,sizeAttenuation:true,depthWrite:false}));
+  // ── starfield — twinkle shader + parallax layers + shooting stars ─────────
+  var starLayers = []; // for parallax
+  var mouseParallax = {x:0, y:0, tx:0, ty:0}; // lerp targets
+
+  // Twinkle vertex/fragment shaders — per-star phase offset drives opacity pulse
+  var twinkleVS = [
+    'attribute float phase;',
+    'attribute float sz;',
+    'uniform float time;',
+    'varying float vAlpha;',
+    'void main(){',
+    '  float pulse = 0.55 + 0.45 * abs(sin(time * 1.1 + phase));',
+    '  vAlpha = pulse;',
+    '  gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);',
+    '  gl_PointSize = sz * (1.0 + 0.25 * sin(time * 0.7 + phase));',
+    '}'
+  ].join('\n');
+  var twinkleFS = [
+    'uniform vec3 col;',
+    'varying float vAlpha;',
+    'void main(){',
+    '  float d = length(gl_PointCoord - 0.5) * 2.0;',
+    '  if(d > 1.0) discard;',
+    '  float soft = 1.0 - smoothstep(0.0, 1.0, d);',
+    '  gl_FragColor = vec4(col, vAlpha * soft);',
+    '}'
+  ].join('\n');
+
+  function mkTwinkleStars(n, rMin, rMax, baseSz, baseCol, layerIdx) {
+    var pos=[], phases=[], sizes=[];
+    for(var i=0;i<n;i++){
+      var th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1);
+      var r=rMin+Math.random()*(rMax-rMin);
+      pos.push(r*Math.sin(ph)*Math.cos(th), r*Math.cos(ph), r*Math.sin(ph)*Math.sin(th));
+      phases.push(Math.random()*Math.PI*2);
+      sizes.push(baseSz * (0.6 + Math.random()*0.8));
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+    geo.setAttribute('phase',    new THREE.Float32BufferAttribute(phases,1));
+    geo.setAttribute('sz',       new THREE.Float32BufferAttribute(sizes,1));
+    var mat = PR
+      ? new THREE.PointsMaterial({color:baseCol, size:baseSz*0.7, transparent:true, opacity:0.5, sizeAttenuation:true, depthWrite:false})
+      : new THREE.ShaderMaterial({
+          uniforms: { time:{value:0}, col:{value:new THREE.Color(baseCol)} },
+          vertexShader: twinkleVS,
+          fragmentShader: twinkleFS,
+          transparent:true, depthWrite:false, blending:THREE.AdditiveBlending
+        });
+    var pts = new THREE.Points(geo, mat);
+    pts.userData.layerIdx = layerIdx; // parallax depth index 0=far,1=mid,2=near
+    pts.userData.isTwinkle = !PR;
+    scene.add(pts);
+    starLayers.push(pts);
+    return pts;
   }
-  scene.add(mkStars(1400,8,14,0.016,0.32,0xaabbdd));
-  scene.add(mkStars(400,6,12,0.028,0.58,0xddeeff));
-  scene.add(mkStars(80,5,9,0.048,0.82,0xffffff));
-  scene.add(mkStars(30,5,8,0.065,0.92,0xccddff));
+
+  mkTwinkleStars(1200, 10, 16, 1.4, 0xaabbdd, 0); // far — slowest parallax
+  mkTwinkleStars(380,   7, 12, 1.9, 0xddeeff, 1); // mid
+  mkTwinkleStars(80,    5,  9, 2.8, 0xffffff, 2); // near — fastest parallax
+  mkTwinkleStars(28,    5,  8, 3.4, 0xffd0a0, 2); // near warm accent
+
+  // ── shooting stars ────────────────────────────────────────────────────────
+  var shooters = []; // active streak objects
+  var shooterGeo=[], shooterMat=[], shooterLines=[];
+  var SHOOTER_COUNT = 3; // pool
+  var nextShooterTime = Date.now() + 3000 + Math.random()*5000;
+
+  for(var si=0;si<SHOOTER_COUNT;si++){
+    var sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(20*3),3).setUsage(THREE.DynamicDrawUsage));
+    var sm = new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0,depthWrite:false});
+    var sl = new THREE.Line(sg, sm);
+    scene.add(sl);
+    shooterGeo.push(sg); shooterMat.push(sm); shooterLines.push(sl);
+    shooters.push({active:false, t:0, speed:0, sx:0,sy:0,sz:0, ex:0,ey:0,ez:0});
+  }
+
+  function spawnShooter() {
+    for(var i=0;i<SHOOTER_COUNT;i++){
+      if(!shooters[i].active){
+        // Random start on sky sphere surface facing camera hemisphere
+        var th=Math.random()*Math.PI*2, ph=Math.acos(2*Math.random()-1)*0.6+0.2;
+        var r=14;
+        shooters[i].sx=r*Math.sin(ph)*Math.cos(th);
+        shooters[i].sy=r*Math.cos(ph);
+        shooters[i].sz=r*Math.sin(ph)*Math.sin(th);
+        // Direction: roughly diagonal across sky
+        var dx=(-0.4+Math.random()*0.8)*3, dy=(-0.8-Math.random()*0.6)*3, dz=(-0.2+Math.random()*0.4);
+        shooters[i].ex=shooters[i].sx+dx;
+        shooters[i].ey=shooters[i].sy+dy;
+        shooters[i].ez=shooters[i].sz+dz;
+        shooters[i].t=0;
+        shooters[i].speed=0.4+Math.random()*0.6; // traverse in ~1.5-2.5s
+        shooters[i].active=true;
+        return;
+      }
+    }
+  }
+
+  if(!PR){
+    // Mouse parallax listener
+    document.addEventListener('mousemove', function(e){
+      var nx = (e.clientX/window.innerWidth - 0.5)*2;
+      var ny = (e.clientY/window.innerHeight - 0.5)*2;
+      mouseParallax.tx = nx; mouseParallax.ty = ny;
+    });
+  }
 
   // ── globe — dark sphere, writes depth (enables occlusion of bug in Step 2) ──
   var globe = new THREE.Mesh(
@@ -497,20 +621,59 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // ── animation loop ────────────────────────────────────────────────────────
   var animId=null, stopped=false, t0=Date.now();
+  var PARALLAX_DEPTHS = [0.018, 0.038, 0.065]; // x/y shift scale per layer depth
+
   function animate(){
     if(stopped)return;
     animId=requestAnimationFrame(animate);
     var t=Date.now(), dt=t-t0;
+    var ts = dt * 0.001; // seconds
+
     if(!isDrag) tRotY+=autoSpd;
     globe.rotation.y+=(tRotY-globe.rotation.y)*0.055;
     globe.rotation.x+=(tRotX-globe.rotation.x)*0.055;
     globe.rotation.z=Math.sin(dt*0.00008)*0.03;
 
-    // traveling pulses along arcs (positions are globe-local, sprites are globe children)
+    // twinkle + parallax for star layers
+    if(!PR){
+      mouseParallax.x += (mouseParallax.tx - mouseParallax.x) * 0.04;
+      mouseParallax.y += (mouseParallax.ty - mouseParallax.y) * 0.04;
+      starLayers.forEach(function(layer){
+        if(layer.userData.isTwinkle && layer.material.uniforms){
+          layer.material.uniforms.time.value = ts;
+        }
+        var depth = PARALLAX_DEPTHS[layer.userData.layerIdx] || 0.02;
+        layer.position.x = mouseParallax.x * depth;
+        layer.position.y = -mouseParallax.y * depth;
+      });
+
+      // shooting stars
+      if(t > nextShooterTime){ spawnShooter(); nextShooterTime = t + 6000 + Math.random()*9000; }
+      var frameMs = 1000/60;
+      shooters.forEach(function(sh,si){
+        if(!sh.active) return;
+        sh.t = Math.min(1, sh.t + sh.speed * (frameMs/1000));
+        var TRAIL = 20, arr = shooterGeo[si].attributes.position.array;
+        for(var pi=0;pi<TRAIL;pi++){
+          var frac = sh.t - (pi/TRAIL)*0.22; // trail length in t-space
+          frac = Math.max(0, Math.min(1, frac));
+          arr[pi*3]   = sh.sx + (sh.ex-sh.sx)*frac;
+          arr[pi*3+1] = sh.sy + (sh.ey-sh.sy)*frac;
+          arr[pi*3+2] = sh.sz + (sh.ez-sh.sz)*frac;
+        }
+        shooterGeo[si].attributes.position.needsUpdate = true;
+        // opacity: ramp up fast, hold, fade out at tail end of t
+        var op = Math.min(1, sh.t*8) * Math.max(0, 1 - Math.max(0,(sh.t-0.75)/0.25));
+        shooterMat[si].opacity = op * 0.85;
+        if(sh.t >= 1){ sh.active=false; shooterMat[si].opacity=0; }
+      });
+    }
+
+    // traveling pulses along arcs (globe-local space)
     arcData.forEach(function(arc){
       var t2=((dt*arc.speed+arc.offset)%1);
       arc.pulse.position.copy(arc.curve.getPoint(t2));
-      arc.pulse.material.opacity=0.9*Math.sin(t2*Math.PI); // fade at endpoints
+      arc.pulse.material.opacity=0.9*Math.sin(t2*Math.PI);
     });
 
     // pulsing nodes
@@ -596,8 +759,10 @@ document.addEventListener('DOMContentLoaded', function() {
 }); // DOMContentLoaded
 </script>
 
-<!-- Cinematic transition burst ring — positioned by JS on click -->
+<!-- Cinematic transition overlays -->
 <div id="wipe-burst"></div>
+<div id="wipe-burst2"></div>
+<div id="surge-flash"></div>
 
 <!-- SPLASH OVERLAY -->
 <div id="splash" role="dialog" aria-modal="true" aria-label="AJ 2026 Community Atlas introduction">
@@ -1443,80 +1608,127 @@ function initMapEnhancements() {
 
   // ── Instant-cut path (reduced-motion or Escape key) ──────────────────────
   function dismissInstant() {
+    if (_transitioning) return;
+    _transitioning = true;
     sessionStorage.setItem('aj2026-splash', '1');
     el.style.display = 'none';
     app.style.cssText = 'opacity:1;transform:none;transition:none';
     revealMap();
   }
 
-  // ── Cinematic path — Ember Surge ─────────────────────────────────────────
+  var _transitioning = false;
+
+  // ── Cinematic path — Ember Surge (set-piece) ─────────────────────────────
   function dismissCinematic() {
+    if (_transitioning) return;
+    _transitioning = true;
     sessionStorage.setItem('aj2026-splash', '1');
-    btn.style.animation = 'none';
-    btn.classList.add('cta-press');
+
+    var burst2   = document.getElementById('wipe-burst2');
+    var surgeEl  = document.getElementById('surge-flash');
+    var canvasEl = document.getElementById('globe-canvas');
 
     var r  = btn.getBoundingClientRect();
     var bx = (r.left + r.width  / 2) | 0;
     var by = (r.top  + r.height / 2) | 0;
 
-    // t=0 — burst ring
+    // t=0 — button press + dual burst rings
+    btn.style.animation = 'none';
+    btn.classList.add('cta-press');
+
     if (burst) {
       burst.style.left = bx + 'px'; burst.style.top = by + 'px';
       burst.style.display = 'block';
-      requestAnimationFrame(function() { burst.classList.add('firing'); });
+      requestAnimationFrame(function(){ burst.classList.add('firing'); });
+    }
+    if (burst2) {
+      burst2.style.left = bx + 'px'; burst2.style.top = by + 'px';
+      burst2.style.display = 'block';
+      requestAnimationFrame(function(){ burst2.classList.add('firing'); });
     }
 
-    // t=200ms — bug light surges → warm amber wash floods globe
-    setTimeout(function() {
+    // t=150ms — PointLight surges 0.5 → 16 with eased ramp (warm amber wash)
+    setTimeout(function(){
       var light = window._bugLight && window._bugLight();
       if (light) {
-        // Animate PointLight intensity 0.5 → 12 over 400ms
-        var startI = light.intensity, targetI = 12, startT = Date.now();
-        var surgeDur = 400;
-        function surgeStep() {
-          var p = Math.min(1, (Date.now()-startT)/surgeDur);
-          light.intensity = startI + (targetI-startI)*p;
-          if (p < 1) requestAnimationFrame(surgeStep);
-        }
-        surgeStep();
+        var s0=light.intensity, tgt=16, tStart=Date.now(), dur=500;
+        (function surgeStep(){
+          var p = Math.min(1,(Date.now()-tStart)/dur);
+          // cubic ease-in for dramatic build
+          var ep = p*p*p;
+          light.intensity = s0 + (tgt-s0)*ep;
+          if (p<1) requestAnimationFrame(surgeStep);
+        })();
+      }
+    }, 150);
+
+    // t=180ms — amber surge flash overlay expands
+    setTimeout(function(){
+      if (surgeEl) { surgeEl.classList.add('active'); }
+    }, 180);
+
+    // t=200ms — canvas: add zoom class (scale up + blur = camera dive feel)
+    setTimeout(function(){
+      if (canvasEl) {
+        canvasEl.classList.add('surge-zoom');
+        canvasEl.style.transform = 'scale(1.14)';
+        canvasEl.style.filter = 'blur(2px)';
+        canvasEl.style.opacity = '1';
       }
     }, 200);
 
-    // t=300ms — canvas begins fading out
-    var canvasEl = document.getElementById('globe-canvas');
-    setTimeout(function() {
+    // t=320ms — chromatic aberration flash then canvas opacity starts dropping
+    setTimeout(function(){
       if (canvasEl) {
-        canvasEl.style.transition = 'opacity 0.4s ease-in';
-        canvasEl.style.opacity = '0';
+        canvasEl.classList.add('chroma');
+        setTimeout(function(){
+          canvasEl.style.opacity = '0';
+        }, 80);
       }
-    }, 300);
+    }, 320);
 
-    // t=600ms — reveal map, fade splash
-    setTimeout(function() {
-      app.style.cssText = 'opacity:0;transform:none;transition:opacity 0.6s ease-out';
-      revealMap();
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() { app.style.opacity = '1'; });
+    // t=650ms — spring-reveal map, fade splash out
+    setTimeout(function(){
+      // #app uses spring cubic-bezier from .map-revealed class
+      app.style.opacity = '0';
+      app.style.transform = 'scale(0.97)';
+      revealMap(); // adds .map-revealed which triggers the spring transition
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          app.style.opacity = '';   // let .map-revealed CSS take over
+          app.style.transform = '';
+        });
       });
 
-      el.style.transition = 'opacity 0.35s ease-in';
+      el.style.transition = 'opacity 0.4s cubic-bezier(0.4,0,1,1)';
       el.style.opacity = '0';
-    }, 600);
+    }, 650);
 
-    // t=950ms — hide splash completely, cool bug light back down
-    setTimeout(function() {
+    // t=1100ms — cleanup
+    setTimeout(function(){
       el.style.display = 'none';
-      el.style.opacity = '';
-      el.style.transition = '';
-      if (burst) { burst.style.display='none'; burst.classList.remove('firing'); }
-      // Cool light back to resting intensity
+      el.style.opacity = ''; el.style.transition = '';
+
+      if (burst)  { burst.style.display='none';  burst.classList.remove('firing'); }
+      if (burst2) { burst2.style.display='none'; burst2.classList.remove('firing'); }
+      if (surgeEl){ surgeEl.classList.remove('active'); }
+
+      if (canvasEl) {
+        canvasEl.classList.remove('surge-zoom','chroma');
+        canvasEl.style.transform=''; canvasEl.style.filter=''; canvasEl.style.opacity='';
+      }
+
+      // cool light back down
       var light = window._bugLight && window._bugLight();
       if (light) {
-        var startI=light.intensity, targetI=0.5, startT=Date.now();
-        function coolStep(){ var p=Math.min(1,(Date.now()-startT)/600); light.intensity=startI+(targetI-startI)*p; if(p<1) requestAnimationFrame(coolStep); }
-        coolStep();
+        var s0=light.intensity, tStart=Date.now(), dur=800;
+        (function coolStep(){
+          var p=Math.min(1,(Date.now()-tStart)/dur);
+          light.intensity = s0*(1-p*p) + 0.5*p*p;
+          if(p<1) requestAnimationFrame(coolStep);
+        })();
       }
-    }, 950);
+    }, 1100);
   }
 
   function dismiss() {
