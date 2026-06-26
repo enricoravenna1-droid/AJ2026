@@ -105,13 +105,17 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 @keyframes splash-fadein{to{opacity:1}}
 @keyframes splash-exit{to{opacity:0;transform:scale(1.05)}}
 #splash-svg{width:min(540px,90vw);height:auto;margin-bottom:32px}
-.na-fill{fill:rgba(20,32,58,.55);stroke:#2a3a59;stroke-width:1}
+.na-fill{fill:url(#terrain-grad);stroke:#3a5a44;stroke-width:0.8;filter:url(#terrain-tex)}
 .na-coast{fill:none;stroke:#2a3a59;stroke-width:.6;stroke-dasharray:3 4}
 #splash-copy{text-align:center;max-width:540px}
 #splash-copy h1{font-family:'Inter',sans-serif;font-size:clamp(26px,5vw,42px);font-weight:700;color:#eef3fb;margin:0 0 14px;letter-spacing:-.5px;line-height:1.12}
 #splash-copy p{font-family:'Inter',sans-serif;font-size:clamp(14px,2vw,16px);color:#9fb0cc;line-height:1.65;margin:0 0 36px;font-weight:400}
 #splash-cta{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:12px 34px;background:transparent;border:1px solid #3b82f6;color:#7ab4fa;border-radius:5px;cursor:pointer;transition:background .18s,color .18s}
 #splash-cta:hover,#splash-cta:focus{background:#3b82f6;color:#fff;outline:none}
+@media(prefers-reduced-motion:no-preference){
+  #splash-cta{animation:cta-pulse 2.4s ease-in-out infinite}
+}
+@keyframes cta-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.0)}60%{box-shadow:0 0 0 7px rgba(59,130,246,.18)}}
 /* federation bug animation */
 .fed-bug{transform-origin:50% 50%;transform-box:fill-box}
 .fed-glow{transform-origin:50% 50%;transform-box:fill-box}
@@ -167,6 +171,29 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
         <stop offset="55%" stop-color="#d4af37" stop-opacity="1"/>
         <stop offset="100%" stop-color="#c8860a" stop-opacity="0.85"/>
       </linearGradient>
+      <!-- Terrain: west-to-east color band simulating Pacific/Rockies/Plains/Midwest/Atlantic -->
+      <linearGradient id="terrain-grad" gradientUnits="userSpaceOnUse" x1="18" y1="0" x2="562" y2="0">
+        <stop offset="0%"   stop-color="#0d2e1a"/>
+        <stop offset="12%"  stop-color="#1a300e"/>
+        <stop offset="26%"  stop-color="#2e2208"/>
+        <stop offset="38%"  stop-color="#221e0a"/>
+        <stop offset="52%"  stop-color="#102614"/>
+        <stop offset="67%"  stop-color="#102018"/>
+        <stop offset="82%"  stop-color="#0e1e2e"/>
+        <stop offset="100%" stop-color="#091428"/>
+      </linearGradient>
+      <!-- Terrain texture: fractal noise blended soft-light over the fill -->
+      <filter id="terrain-tex" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.055 0.04" numOctaves="4" seed="7" result="noise"/>
+        <feColorMatrix type="matrix"
+          values="0.04 0 0 0 0  0 0.07 0 0 0  0 0 0.02 0 0  0 0 0 0.22 0"
+          in="noise" result="tinted"/>
+        <feComposite in="tinted" in2="SourceGraphic" operator="in" result="masked"/>
+        <feBlend in="SourceGraphic" in2="masked" mode="soft-light"/>
+      </filter>
+      <!-- Soft blur for terrain overlays -->
+      <filter id="soft-blur"><feGaussianBlur stdDeviation="14"/></filter>
+      <clipPath id="na-clip"><use href="#na-path"/></clipPath>
     </defs>
 
     <!--
@@ -175,7 +202,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
       Atlantic seaboard down right side, Florida peninsula lower-right
       (drops ~100px below Gulf coast), Gulf concavity going left, Pacific coast rising.
     -->
-    <path class="na-fill" d="
+    <path class="na-fill" id="na-path" d="
       M 22,192
       L 30,160 40,128 54,100 68,78 84,60 105,46 130,34 160,24 194,16 230,10
         268,7 306,8 344,13 380,22 412,34 436,50 452,70 462,96 468,126 466,152
@@ -187,10 +214,23 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
       Z
     "/>
 
-    <!-- Great Lakes subtle indicators -->
-    <ellipse cx="385" cy="138" rx="20" ry="8" fill="none" stroke="#1d3050" stroke-width="1" opacity=".85"/>
-    <ellipse cx="428" cy="155" rx="12" ry="5" fill="none" stroke="#1d3050" stroke-width=".8" opacity=".7"/>
-    <ellipse cx="352" cy="152" rx="9" ry="13" fill="none" stroke="#1d3050" stroke-width=".8" opacity=".65"/>
+    <!-- Rocky Mountain elevation tint — JS-projected coords: x≈154-253, y≈179-281 -->
+    <ellipse cx="200" cy="230" rx="66" ry="62" fill="#5c3010" opacity="0.11" filter="url(#soft-blur)"/>
+    <!-- Great Plains warm tint -->
+    <ellipse cx="295" cy="240" rx="55" ry="50" fill="#4a3c08" opacity="0.09" filter="url(#soft-blur)"/>
+
+    <!-- State/province border lines — drawn by JS projection -->
+    <g id="state-lines"></g>
+
+    <!-- Great Lakes water bodies — JS repositions ellipses -->
+    <ellipse cx="385" cy="138" rx="20" ry="8" fill="#0a1828" stroke="#1e3c58" stroke-width="0.8" opacity=".9"/>
+    <ellipse cx="428" cy="155" rx="12" ry="5" fill="#0a1828" stroke="#1e3c58" stroke-width=".7" opacity=".8"/>
+    <ellipse cx="352" cy="152" rx="9" ry="13" fill="#0a1828" stroke="#1e3c58" stroke-width=".7" opacity=".75"/>
+    <!-- Lake Ontario / Erie extras -->
+    <ellipse cx="404" cy="148" rx="14" ry="5" fill="#0a1828" stroke="#1e3c58" stroke-width=".6" opacity=".7"/>
+
+    <!-- City dots and labels — drawn by JS projection -->
+    <g id="hero-cities"></g>
 
     <!-- Federation bug glow halo — JS repositions cx/cy -->
     <ellipse class="fed-glow" cx="442" cy="200" rx="50" ry="50" fill="#d4af37" opacity=".15" filter="url(#glow-halo)"/>
@@ -213,7 +253,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
   <div id="splash-copy">
     <h1>Small Communities.<br>Outsized Stakes.</h1>
     <p>A strategic view of vulnerable Jewish communities across the North American federation landscape — population, security exposure, growth trajectory, and value scores in one interactive map.</p>
-    <button id="splash-cta">Open the Map</button>
+    <button id="splash-cta">Enter the Atlas ↓</button>
   </div>
 </div>
 
@@ -236,8 +276,8 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
       <div class="block">
         <h2>Map view</h2>
         <div class="seg" id="viewseg">
-          <button data-v="heat" class="on">Pop. heat</button>
-          <button data-v="risk">At-risk</button>
+          <button data-v="heat">Pop. heat</button>
+          <button data-v="risk" class="on">At-risk</button>
           <button data-v="security">Security</button>
           <button data-v="both">Both</button>
           <button data-v="growth">Growth</button>
@@ -372,7 +412,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{
 }).addTo(map);
 
 let heatLayer=null, markerLayer=L.layerGroup().addTo(map);
-const state={view:'heat',tier:'',scope:'',country:'',q:'',prios:new Set(['Critical','High','Moderate','Lower'])};
+const state={view:'risk',tier:'',scope:'',country:'',q:'',prios:new Set(['Critical','High','Moderate','Lower'])};
 
 function radius(jp){ return Math.max(5, Math.min(34, 4.2*Math.sqrt(jp/1000)+4)); }
 function adlColor(d){
@@ -441,7 +481,7 @@ function drawHeat(rows){
   const pts=rows.map(d=>[d.lat,d.lon, Math.sqrt(d.jewish_pop)]);
   const max=Math.max(1,...pts.map(p=>p[2]));
   heatLayer=L.heatLayer(pts,{radius:30,blur:22,maxZoom:9,max:max,minOpacity:0.25,
-    gradient:{0.0:'#1d3a8a',0.35:'#3b82f6',0.6:'#f5c518',0.8:'#f5871f',1.0:'#e23b3b'}}).addTo(map);
+    gradient:{0.0:'#081830',0.25:'#0f3a6e',0.55:'#2a7fd4',0.78:'#f07820',1.0:'#e23b3b'}}).addTo(map);
 }
 function drawMarkers(rows){
   markerLayer.clearLayers();
@@ -744,12 +784,188 @@ function initMapEnhancements() {
   if(fw){ fw.setAttribute('x', fp[0]-bugSize/2); fw.setAttribute('y', fp[1]-bugSize/2); }
   if(fg){ fg.setAttribute('cx',fp[0]); fg.setAttribute('cy',fp[1]); }
 
-  // Reposition Great Lakes
-  var lSup=proj(47,-85), lEri=proj(42,-81), lMic=proj(44,-87);
-  var ellipses=document.querySelectorAll('#splash-svg ellipse:not(.flame-glow)');
+  // Reposition Great Lakes (Superior, Huron/Erie, Michigan, Ontario, Erie-south)
+  var lSup=proj(47.5,-85), lHur=proj(44.5,-82), lMic=proj(44,-87), lOnt=proj(43.6,-77.5), lEri=proj(42.1,-80.5);
+  var ellipses=document.querySelectorAll('#splash-svg ellipse:not(.fed-glow)');
   if(ellipses[0]){ ellipses[0].setAttribute('cx',lSup[0]); ellipses[0].setAttribute('cy',lSup[1]); }
-  if(ellipses[1]){ ellipses[1].setAttribute('cx',lEri[0]); ellipses[1].setAttribute('cy',lEri[1]); }
+  if(ellipses[1]){ ellipses[1].setAttribute('cx',lHur[0]); ellipses[1].setAttribute('cy',lHur[1]); }
   if(ellipses[2]){ ellipses[2].setAttribute('cx',lMic[0]); ellipses[2].setAttribute('cy',lMic[1]); }
+  if(ellipses[3]){ ellipses[3].setAttribute('cx',lOnt[0]); ellipses[3].setAttribute('cy',lOnt[1]); }
+
+  // ── State & province border lines ──────────────────────────────────────────
+  var STATE_SEGS = [
+    // 49th parallel (US/Canada west of Great Lakes)
+    [[49,-95],[49,-110],[49,-123]],
+    // WA/OR border (46.25°N)
+    [[46.25,-124],[46.25,-117]],
+    // OR/CA border (42°N)
+    [[42,-124],[42,-117]],
+    // CA/NV border
+    [[42,-120],[39,-120],[35.5,-114.6]],
+    // NV/AZ (Colorado River approach)
+    [[37,-114.6],[35,-114.6]],
+    // AZ/NM (109°W)
+    [[37,-109],[31.3,-109]],
+    // NM/TX south
+    [[32,-106],[32,-104],[31.8,-104]],
+    // WA/ID/MT — 117°W
+    [[49,-117],[46.5,-117]],
+    // OR/ID — 117°W
+    [[46.5,-117],[42,-117]],
+    // ID/MT/WY — 111°W
+    [[49,-111],[44.5,-111],[42,-111]],
+    // WY/ID south (42°N, 109-111°W)
+    [[42,-109],[42,-111]],
+    // WY north border (45°N, 104-111°W)
+    [[45,-104],[45,-111]],
+    // WY/CO (41°N, 104-111°W)
+    [[41,-104],[41,-111]],
+    // CO/UT (109°W, 37-41°N)
+    [[41,-109],[37,-109]],
+    // CO/NM (37°N, 102-109°W)
+    [[37,-102.05],[37,-109]],
+    // MT/ND/SD eastern border (104°W, 45-49°N)
+    [[49,-104],[45,-104]],
+    // WY/SD/NE (104°W, 41-45°N)
+    [[45,-104],[41,-104]],
+    // CO/KS (102°W, 37-41°N)
+    [[41,-102],[37,-102.05]],
+    // KS/OK (37°N, 94.6-102°W)
+    [[37,-94.6],[37,-102]],
+    // OK panhandle north (36.5°N, 100-103°W)
+    [[36.5,-100],[36.5,-103]],
+    // OK/TX south (Red River, approximate)
+    [[34,-94.5],[33.8,-97],[33.6,-100]],
+    // TX/NM east (104°W, 32-32.5°N going to panhandle)
+    [[32,-104],[36.5,-103]],
+    // TX eastern border (94°W south)
+    [[33.5,-94],[29.9,-94]],
+    // ND/SD (46°N, 97-104°W)
+    [[46,-97],[46,-104]],
+    // SD/NE (43°N, 97-104°W)
+    [[43,-97],[43,-104]],
+    // NE/KS (40°N, 94.6-102°W)
+    [[40,-94.6],[40,-102]],
+    // MN/ND/SD eastern edge (97°W, 43-49°N)
+    [[49,-97],[43,-97]],
+    // IA/MN border (43.5°N, 90.2-96.5°W)
+    [[43.5,-90.2],[43.5,-96.5]],
+    // MO/IA (40.6°N, 91-95.8°W)
+    [[40.6,-91.1],[40.6,-95.8]],
+    // AR/OK (94.6°W, 33-36.5°N)
+    [[33,-94.6],[36.5,-94.6]],
+    // AR/MO/TN (36.5°N, 89.5-94.6°W)
+    [[36.5,-89.5],[36.5,-94.6]],
+    // Mississippi River (approximate)
+    [[47.5,-92],[46,-92],[44,-91.2],[43,-91.1],[42,-90.5],[41.5,-90.5],
+     [40.6,-91.1],[40,-91.4],[38,-90],[36.5,-89.5],[35.2,-90.1],[34,-90.3],[33,-91],[30.3,-89.7]],
+    // Ohio River (approximate)
+    [[38.5,-82.5],[38,-82.8],[37.8,-83.9],[37,-84.8],[37,-86.9],[37.1,-88.1],[37,-88.7]],
+    // LA/MS (89.5°W, 30-33°N)
+    [[30,-89.5],[33,-89.5]],
+    // MS/AL (88°W, 30-35°N)
+    [[30,-88],[35,-88]],
+    // AL/GA (85.2°W, 31-35°N)
+    [[31,-85.2],[35,-85.2]],
+    // GA/FL/SC (31°N, 81-85.2°W)
+    [[31,-81.5],[31,-85.2]],
+    // VA/NC/TN (36.5°N, 76-84.3°W)
+    [[36.5,-75.9],[36.5,-84.3]],
+    // KY/TN (36.6°N, 82-89°W)
+    [[36.6,-82],[36.6,-89]],
+    // TN/GA/AL (35°N, 84.3-88°W)
+    [[35,-84.3],[35,-88]],
+    // IL/IN (87.5°W, 37-42.5°N)
+    [[42.5,-87.5],[37,-87.5]],
+    // IN/OH (84.8°W, 38-41.7°N)
+    [[41.7,-84.8],[38,-84.8]],
+    // OH/PA (80.5°W, 40-42°N)
+    [[42,-80.5],[40,-80.5]],
+    // PA/NY south (42°N, 74.7-79.8°W)
+    [[42,-74.7],[42,-79.8]],
+    // PA/MD (39.7°N, 75.8-78.2°W)
+    [[39.7,-75.8],[39.7,-78.2]],
+    // VA/WV ridge (approximate diagonal)
+    [[39,-79],[38,-81],[37.5,-82.5]],
+    // SC/NC (35°N diagonal rough)
+    [[35,-78],[34,-81],[33.8,-83]],
+    // FL west coast (approx)
+    [[31,-85.2],[30,-86],[29.5,-85],[28,-82.7]],
+    // New England
+    [[42,-72.1],[42,-73.5]],
+    [[42,-72.1],[44.5,-71.2],[45.3,-71.1]],
+    [[43.7,-70.9],[42,-70.9]],
+    // Great Lakes eastern region
+    [[46.5,-90],[42.5,-87.5]],
+    [[42,-80.5],[42,-83.5]],
+    // Canadian Provinces
+    [[49,-120],[60,-120]],  // BC/AB
+    [[49,-110],[60,-110]],  // AB/SK
+    [[49,-101.5],[60,-101.5]],  // SK/MB
+    [[49,-95.2],[53,-95.2]],   // MB/ON
+    [[45,-79],[50,-79]],        // ON/QC rough
+    [[45,-74.7],[47,-74.7]],    // QC south
+  ];
+
+  var ns = 'http://www.w3.org/2000/svg';
+  var stateGroup = document.getElementById('state-lines');
+  if (stateGroup) {
+    STATE_SEGS.forEach(function(seg) {
+      var pts = seg.map(function(p){ var xy=proj(p[0],p[1]); return xy[0].toFixed(1)+','+xy[1].toFixed(1); });
+      var pl = document.createElementNS(ns,'polyline');
+      pl.setAttribute('points', pts.join(' '));
+      pl.setAttribute('fill','none');
+      pl.setAttribute('stroke','rgba(160,210,180,0.22)');
+      pl.setAttribute('stroke-width','0.55');
+      pl.setAttribute('stroke-linecap','round');
+      pl.setAttribute('stroke-linejoin','round');
+      stateGroup.appendChild(pl);
+    });
+  }
+
+  // ── Hero city labels ────────────────────────────────────────────────────────
+  var HERO_CITIES = [
+    {name:'New York',     lat:40.71, lon:-74.00,  side:'r'},
+    {name:'Los Angeles',  lat:34.05, lon:-118.24, side:'l'},
+    {name:'Chicago',      lat:41.88, lon:-87.63,  side:'r'},
+    {name:'Houston',      lat:29.76, lon:-95.37,  side:'l'},
+    {name:'Phoenix',      lat:33.45, lon:-112.07, side:'l'},
+    {name:'Seattle',      lat:47.61, lon:-122.33, side:'l'},
+    {name:'Miami',        lat:25.77, lon:-80.19,  side:'r'},
+    {name:'Denver',       lat:39.74, lon:-104.99, side:'r'},
+    {name:'Atlanta',      lat:33.75, lon:-84.39,  side:'r'},
+    {name:'Dallas',       lat:32.78, lon:-96.80,  side:'l'},
+    {name:'Toronto',      lat:43.65, lon:-79.38,  side:'r'},
+    {name:'Montreal',     lat:45.50, lon:-73.57,  side:'r'},
+    {name:'Vancouver',    lat:49.28, lon:-123.12, side:'l'},
+    {name:'Minneapolis',  lat:44.98, lon:-93.27,  side:'r'},
+    {name:'Boston',       lat:42.36, lon:-71.06,  side:'r'},
+  ];
+
+  var cityGroup = document.getElementById('hero-cities');
+  if (cityGroup) {
+    HERO_CITIES.forEach(function(c) {
+      var xy = proj(c.lat, c.lon);
+      var x = +xy[0].toFixed(1), y = +xy[1].toFixed(1);
+      var dot = document.createElementNS(ns,'circle');
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y);
+      dot.setAttribute('r','1.8');
+      dot.setAttribute('fill','#c8ddf0');
+      dot.setAttribute('opacity','0.65');
+      cityGroup.appendChild(dot);
+      var lbl = document.createElementNS(ns,'text');
+      lbl.setAttribute('x', c.side==='r' ? x+4 : x-4);
+      lbl.setAttribute('y', y+2);
+      lbl.setAttribute('font-family','Inter,sans-serif');
+      lbl.setAttribute('font-size','6');
+      lbl.setAttribute('font-weight','500');
+      lbl.setAttribute('fill','#b0cce0');
+      lbl.setAttribute('opacity','0.7');
+      lbl.setAttribute('text-anchor', c.side==='r' ? 'start' : 'end');
+      lbl.textContent = c.name;
+      cityGroup.appendChild(lbl);
+    });
+  }
 })();
 </script>
 
