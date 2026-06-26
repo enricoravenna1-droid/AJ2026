@@ -113,7 +113,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 #splash-svg{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(540px,90vw);height:auto}
 .na-fill{fill:url(#terrain-grad);stroke:#3a5a44;stroke-width:0.8;filter:url(#terrain-tex)}
 .na-coast{fill:none;stroke:#2a3a59;stroke-width:.6;stroke-dasharray:3 4}
-#splash-copy{position:relative;z-index:2;text-align:center;max-width:540px}
+#splash-copy{position:absolute;bottom:8vh;left:50%;transform:translateX(-50%);z-index:2;text-align:center;width:min(540px,90vw)}
 #splash-copy h1{font-family:'Inter',sans-serif;font-size:clamp(26px,5vw,42px);font-weight:700;color:#eef3fb;margin:0 0 14px;letter-spacing:-.5px;line-height:1.12}
 #splash-copy p{font-family:'Inter',sans-serif;font-size:clamp(14px,2vw,16px);color:#9fb0cc;line-height:1.65;margin:0 0 36px;font-weight:400}
 #splash-cta{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:12px 34px;background:transparent;border:1px solid #3b82f6;color:#7ab4fa;border-radius:5px;cursor:pointer;transition:background .18s,color .18s}
@@ -232,7 +232,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
   var scene  = new THREE.Scene();
   var camera = new THREE.PerspectiveCamera(40, W/H, 0.1, 60);
-  camera.position.z = 2.55;
+  camera.position.set(0, -0.38, 2.55);
+  camera.lookAt(0, 0, 0);
 
   window.addEventListener('resize', function(){
     W = window.innerWidth; H = window.innerHeight;
