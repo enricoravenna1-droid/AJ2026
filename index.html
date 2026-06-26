@@ -116,6 +116,28 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
   #splash-cta{animation:cta-pulse 2.4s ease-in-out infinite}
 }
 @keyframes cta-pulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,.0)}60%{box-shadow:0 0 0 7px rgba(59,130,246,.18)}}
+
+/* === CINEMATIC TRANSITION === */
+/* Burst ring: expands from button center on click */
+#wipe-burst{display:none;position:fixed;z-index:10000;width:8px;height:8px;border-radius:50%;background:rgba(59,130,246,.18);border:1.5px solid rgba(59,130,246,.55);pointer-events:none;transform:translate(-50%,-50%)}
+#wipe-burst.firing{animation:burst-ring .65s ease-out forwards}
+@keyframes burst-ring{
+  0%  {width:8px;height:8px;opacity:1}
+  40% {width:72px;height:72px;opacity:.55}
+  100%{width:130px;height:130px;opacity:0}
+}
+/* Anticipation: button scale-down on click */
+.cta-press{animation:btn-press .2s ease-out forwards !important}
+@keyframes btn-press{
+  0%  {transform:scale(1)}
+  45% {transform:scale(.88);box-shadow:0 0 0 12px rgba(59,130,246,.22)}
+  100%{transform:scale(1)}
+}
+
+/* === ADL TEXT ROWS (block layout, not flex) === */
+.adl-text{display:block;font-size:13px;line-height:1.6;overflow-wrap:break-word;word-break:normal;margin:7px 0 0;color:var(--ink)}
+.adl-text.muted{color:var(--muted)}
+.adl-text b[style]{display:inline}
 /* federation bug animation */
 .fed-bug{transform-origin:50% 50%;transform-box:fill-box}
 .fed-glow{transform-origin:50% 50%;transform-box:fill-box}
@@ -153,6 +175,9 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 </style>
 </head>
 <body>
+
+<!-- Cinematic transition burst ring — positioned by JS on click -->
+<div id="wipe-burst"></div>
 
 <!-- SPLASH OVERLAY -->
 <div id="splash" role="dialog" aria-modal="true" aria-label="AJ 2026 Community Atlas introduction">
@@ -288,11 +313,11 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 
       <div class="block" style="background:linear-gradient(180deg,#1d2a42 0%,#16223a 100%);border:1px solid #2a3a59;border-radius:9px;padding:12px">
         <h2>ADL 2025 headline</h2>
-        <div class="legend-row" style="font-size:13px;line-height:1.45"><b>6,274 antisemitic incidents</b> nationwide in 2025 &mdash; <b>33% lower than 2024</b> but the <b>3rd-highest year on record</b> since ADL began tracking in 1979.</div>
-        <div class="legend-row" style="margin-top:6px;font-size:13px;line-height:1.45"><b style="color:var(--crit)">Assaults still rose.</b> Three Jewish people were murdered (DC Capital Jewish Museum, Boulder Run for Their Lives, PA Governor&rsquo;s residence firebombing). 300+ assault victims.</div>
-        <div class="legend-row" style="margin-top:6px;font-size:13px;line-height:1.45"><b>Small communities in the line of fire:</b> a Chabad Jewish Center in <b>Punta Gorda, FL</b> was firebombed in 2025 &mdash; a small Jewish community covered by a regional federation at distance. Exactly the kind of exposure this kit is built to surface.</div>
-        <div class="legend-row" style="margin-top:6px;font-size:13px;line-height:1.45"><b>Policy lever:</b> ADL secured a <b>$30M increase</b> to the federal Nonprofit Security Grant Program for FY2026 &mdash; the funding mechanism small/at-risk federations can mobilize against.</div>
-        <div class="legend-row" style="margin-top:4px;color:var(--muted)">Source: ADL Audit of Antisemitic Incidents 2025.</div>
+        <div class="adl-text"><b>6,274 antisemitic incidents</b> nationwide in 2025 &mdash; <b>33% lower than 2024</b> but the <b>3rd-highest year on record</b> since ADL began tracking in 1979.</div>
+        <div class="adl-text"><b style="color:var(--crit)">Assaults still rose.</b> Three Jewish people were murdered (DC Capital Jewish Museum, Boulder Run for Their Lives, PA Governor&rsquo;s residence firebombing). 300+ assault victims.</div>
+        <div class="adl-text"><b>Small communities in the line of fire:</b> a Chabad Jewish Center in <b>Punta Gorda, FL</b> was firebombed in 2025 &mdash; a small Jewish community covered by a regional federation at distance. Exactly the kind of exposure this kit is built to surface.</div>
+        <div class="adl-text"><b>Policy lever:</b> ADL secured a <b>$30M increase</b> to the federal Nonprofit Security Grant Program for FY2026 &mdash; the funding mechanism small/at-risk federations can mobilize against.</div>
+        <div class="adl-text muted">Source: ADL Audit of Antisemitic Incidents 2025.</div>
       </div>
       <div class="block">
         <h2>Security partners</h2>
@@ -971,36 +996,100 @@ function initMapEnhancements() {
 
 <script>
 (function(){
-  var el = document.getElementById('splash');
+  var el  = document.getElementById('splash');
   var btn = document.getElementById('splash-cta');
   var app = document.getElementById('app');
-  if(!el) return;
+  var burst = document.getElementById('wipe-burst');
+  if (!el) return;
+
+  var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   function revealMap() {
     if (app) app.classList.add('map-revealed');
     initMapEnhancements();
   }
 
-  if(sessionStorage.getItem('aj2026-splash')){
+  // Skip splash entirely if already seen
+  if (sessionStorage.getItem('aj2026-splash')) {
     el.style.display = 'none';
+    app.style.cssText = 'opacity:1;transform:none;transition:none';
     revealMap();
     return;
   }
 
-  function dismiss(){
+  // ── Instant-cut path (reduced-motion or Escape key) ──────────────────────
+  function dismissInstant() {
     sessionStorage.setItem('aj2026-splash', '1');
-    el.classList.add('going');
-    // Start map reveal slightly before splash fully gone — overlapping crossfade
-    setTimeout(revealMap, 150);
-    setTimeout(function(){ el.style.display = 'none'; }, 700);
+    el.style.display = 'none';
+    app.style.cssText = 'opacity:1;transform:none;transition:none';
+    revealMap();
+  }
+
+  // ── Cinematic path ────────────────────────────────────────────────────────
+  function dismissCinematic() {
+    sessionStorage.setItem('aj2026-splash', '1');
+
+    // Freeze pulse animation on button
+    btn.style.animation = 'none';
+
+    // Get button center in viewport coords
+    var r  = btn.getBoundingClientRect();
+    var bx = (r.left + r.width  / 2) | 0;
+    var by = (r.top  + r.height / 2) | 0;
+
+    // 1. Anticipation beat: button scale-down flash
+    btn.classList.add('cta-press');
+
+    // 2. Burst ring expands from button center (atmosphere, not spinner)
+    if (burst) {
+      burst.style.left = bx + 'px';
+      burst.style.top  = by + 'px';
+      burst.style.display = 'block';
+      // Trigger animation next frame
+      requestAnimationFrame(function() { burst.classList.add('firing'); });
+    }
+
+    // 3. After anticipation beat → collapse splash toward button (clip-path wipe)
+    setTimeout(function() {
+      var origin = bx + 'px ' + by + 'px';
+
+      // Reveal #app immediately, no CSS transition (clip-path handles visual)
+      app.style.cssText = 'opacity:1;transform:none;transition:none';
+      revealMap();
+
+      // Collapse the splash toward the button position via clip-path shrink
+      el.style.transition = 'none';
+      el.style.clipPath    = 'circle(150% at ' + origin + ')';
+
+      requestAnimationFrame(function() {
+        requestAnimationFrame(function() {
+          el.style.transition = 'clip-path 0.72s cubic-bezier(0.4, 0, 0.2, 1)';
+          el.style.clipPath    = 'circle(0% at ' + origin + ')';
+        });
+      });
+
+      // Cleanup after wipe completes
+      setTimeout(function() {
+        el.style.display = 'none';
+        el.style.clipPath = '';
+        el.style.transition = '';
+        if (burst) { burst.style.display = 'none'; burst.classList.remove('firing'); }
+      }, 800);
+
+    }, 200);
+  }
+
+  function dismiss() {
+    if (prefersReduced) { dismissInstant(); } else { dismissCinematic(); }
   }
 
   btn.addEventListener('click', dismiss);
-  btn.addEventListener('keydown', function(e){
-    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); dismiss(); }
+  btn.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); dismiss(); }
   });
-  document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape') dismiss();
+  // Escape = instant cut, no ceremony
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') dismissInstant();
   });
 })();
 </script>
