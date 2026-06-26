@@ -17,6 +17,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 <style>
 :root{
   --bg:#0e1525; --panel:#162033; --panel2:#1d2a42; --line:#2a3a59;
@@ -104,7 +105,12 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 #splash.going{animation:splash-exit .65s ease-out forwards;pointer-events:none}
 @keyframes splash-fadein{to{opacity:1}}
 @keyframes splash-exit{to{opacity:0;transform:scale(1.05)}}
-#splash-svg{width:min(540px,90vw);height:auto;margin-bottom:32px}
+/* Globe wrap — primary hero element */
+#globe-wrap{width:min(480px,86vw);height:min(480px,86vw);margin-bottom:28px;flex-shrink:0;position:relative}
+#globe-canvas{width:100%;height:100%;display:block;border-radius:50%;cursor:grab}
+#globe-canvas:active{cursor:grabbing}
+/* SVG terrain map: hidden by default, globe JS shows it as WebGL fallback */
+#splash-svg{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(540px,90vw);height:auto}
 .na-fill{fill:url(#terrain-grad);stroke:#3a5a44;stroke-width:0.8;filter:url(#terrain-tex)}
 .na-coast{fill:none;stroke:#2a3a59;stroke-width:.6;stroke-dasharray:3 4}
 #splash-copy{text-align:center;max-width:540px}
@@ -176,12 +182,245 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 </head>
 <body>
 
+<script>
+// ── GLOBE INIT ─────────────────────────────────────────────────────────────
+(function() {
+  var canvas  = document.getElementById('globe-canvas');
+  var svgFb   = document.getElementById('splash-svg');   // fallback
+  var splashEl = document.getElementById('splash');
+  if (!canvas || !window.THREE) { if (svgFb) svgFb.style.display = 'block'; return; }
+
+  // WebGL availability check
+  var testCtx;
+  try { testCtx = canvas.getContext('webgl') || canvas.getContext('experimental-webgl'); } catch(e){}
+  if (!testCtx) { canvas.style.display = 'none'; if (svgFb) svgFb.style.display = 'block'; return; }
+
+  var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Set canvas backing resolution
+  var W = 480, H = 480;
+  canvas.width = W; canvas.height = H;
+
+  // ── Scene ────────────────────────────────────────────────────────────────
+  var THREE = window.THREE;
+  var scene  = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
+  camera.position.z = 2.6;
+
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setSize(W, H);
+  renderer.setClearColor(0x000000, 0);
+
+  // ── Lighting ─────────────────────────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0x334466, 0.7));
+  var sun = new THREE.DirectionalLight(0x7799cc, 1.1);
+  sun.position.set(3, 2, 2);
+  scene.add(sun);
+  var rimLight = new THREE.DirectionalLight(0x112244, 0.35);
+  rimLight.position.set(-2, 0, -2);
+  scene.add(rimLight);
+
+  // ── Globe texture — canvas painted with ocean + land ─────────────────────
+  var TX = 1024, TY = 512;
+  var mapCvs = document.createElement('canvas');
+  mapCvs.width = TX; mapCvs.height = TY;
+  var mctx = mapCvs.getContext('2d');
+
+  // Ocean base
+  mctx.fillStyle = '#0a1728';
+  mctx.fillRect(0, 0, TX, TY);
+
+  // Graticule — very subtle lat/lon grid
+  mctx.strokeStyle = 'rgba(38,65,95,0.3)';
+  mctx.lineWidth = 0.7;
+  for (var gl = -180; gl <= 180; gl += 30) {
+    var gx = (gl + 180) / 360 * TX;
+    mctx.beginPath(); mctx.moveTo(gx, 0); mctx.lineTo(gx, TY); mctx.stroke();
+  }
+  for (var gb = -90; gb <= 90; gb += 30) {
+    var gy = (90 - gb) / 180 * TY;
+    mctx.beginPath(); mctx.moveTo(0, gy); mctx.lineTo(TX, gy); mctx.stroke();
+  }
+
+  var mapTex = new THREE.CanvasTexture(mapCvs);
+  var globe  = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 64, 64),
+    new THREE.MeshPhongMaterial({ map: mapTex, specular: new THREE.Color(0x0a1428), shininess: 10 })
+  );
+  scene.add(globe);
+
+  // Lazy-fetch world land and paint onto texture
+  if (typeof topojson !== 'undefined') {
+    fetch('https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json')
+      .then(function(r) { return r.json(); })
+      .then(function(topo) {
+        var land = topojson.feature(topo, topo.objects.land);
+
+        function drawGeom(geom) {
+          if (!geom) return;
+          function ring(pts) {
+            if (pts.length < 2) return;
+            mctx.beginPath();
+            var first = true;
+            for (var i = 0; i < pts.length; i++) {
+              var px = (pts[i][0] + 180) / 360 * TX;
+              var py = (90 - pts[i][1]) / 180 * TY;
+              first ? mctx.moveTo(px, py) : mctx.lineTo(px, py);
+              first = false;
+            }
+            mctx.closePath();
+            mctx.fill(); mctx.stroke();
+          }
+          if (geom.type === 'Polygon') {
+            geom.coordinates.forEach(ring);
+          } else if (geom.type === 'MultiPolygon') {
+            geom.coordinates.forEach(function(p) { p.forEach(ring); });
+          }
+        }
+
+        mctx.fillStyle   = '#1a2e14';  // dark forest green — land
+        mctx.strokeStyle = '#253d1a';  // slightly brighter coastline
+        mctx.lineWidth   = 0.7;
+
+        if (land.type === 'Feature')           { drawGeom(land.geometry); }
+        else if (land.type === 'FeatureCollection') { land.features.forEach(function(f) { drawGeom(f.geometry); }); }
+        else { drawGeom(land); } // GeometryCollection / direct geometry
+
+        // Subtle highlight pass — thin inner coastline stroke
+        mctx.strokeStyle = 'rgba(70,110,50,0.2)';
+        mctx.lineWidth = 1.2;
+        if (land.type === 'Feature') { drawGeom(land.geometry); }
+
+        mapTex.needsUpdate = true;
+      })
+      .catch(function() {});
+  }
+
+  // ── Atmosphere — faint blue rim glow ─────────────────────────────────────
+  scene.add(new THREE.Mesh(
+    new THREE.SphereGeometry(1.045, 32, 32),
+    new THREE.MeshBasicMaterial({ color: 0x1a4a88, transparent: true, opacity: 0.13, side: THREE.BackSide, depthWrite: false })
+  ));
+
+  // ── Starfield ─────────────────────────────────────────────────────────────
+  var sv = [];
+  for (var si = 0; si < 220; si++) {
+    var st = Math.random() * Math.PI * 2, sp = Math.acos(2 * Math.random() - 1), sr = 5 + Math.random() * 2;
+    sv.push(sr*Math.sin(sp)*Math.cos(st), sr*Math.cos(sp), sr*Math.sin(sp)*Math.sin(st));
+  }
+  var starGeo = new THREE.BufferGeometry();
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sv, 3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.022, transparent: true, opacity: 0.5, sizeAttenuation: true })));
+
+  // ── Federation bug sprite ─────────────────────────────────────────────────
+  var bugSprite = null, bugBaseY = 0;
+
+  var bugSVGstr = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 720">'
+    + '<path fill="#d4af37" d="M667.39,338.71l-.17-2.19c-2.8-37.06-12.17-72.86-27.86-106.42-15.23-32.59-35.92-62.07-61.5-87.6-25.58-25.53-55.1-46.19-87.75-61.4-33.61-15.66-69.48-25.01-106.6-27.81-7.74-.59-15.66-.88-23.52-.88s-15.77,.3-23.51,.88c-37.12,2.8-72.99,12.15-106.6,27.81-32.65,15.21-62.17,35.86-87.75,61.4-25.58,25.53-46.27,55.01-61.5,87.6-15.68,33.56-25.05,69.36-27.86,106.42l-.17,2.19H0l.16-2.52C5.85,249.21,43.09,167.26,105.01,105.44,166.93,43.63,249.02,6.46,336.15,.78c7.9-.52,15.92-.78,23.85-.78s15.95,.26,23.85,.78c87.13,5.68,169.22,42.85,231.14,104.67,61.92,61.82,99.16,143.76,104.84,230.75l.16,2.52h-52.61Z"/>'
+    + '<path fill="#b8860b" d="M360,720c-7.93,0-15.95-.26-23.85-.78-87.13-5.68-169.22-42.85-231.14-104.67C43.09,552.74,5.85,470.79,.16,383.81l-.16-2.52H52.61l.17,2.19c2.8,37.06,12.17,72.86,27.86,106.42,15.23,32.59,35.92,62.07,61.5,87.6,25.58,25.53,55.1,46.19,87.75,61.4,32.85,15.3,67.84,24.58,104.05,27.61v-43.13c-30.46-2.97-59.88-11.09-87.48-24.17-27.46-13.01-52.32-30.53-73.9-52.07-21.58-21.54-39.13-46.36-52.16-73.77-13.41-28.2-21.62-58.31-24.41-89.48l-.23-2.58h52.72l.23,2.11c2.65,24.18,9.4,47.51,20.04,69.34,10.36,21.26,24.14,40.54,40.94,57.32,16.81,16.78,36.13,30.53,57.42,40.88,21.08,10.24,43.55,16.86,66.83,19.7v-43.36c-17.56-2.7-34.49-8.13-50.35-16.13-16.07-8.11-30.7-18.69-43.48-31.45-12.78-12.76-23.38-27.36-31.5-43.4-8.33-16.45-13.87-34.04-16.46-52.3l-.38-2.7h53.12l.38,1.9c4.54,22.54,15.6,43.09,31.98,59.44,15.69,15.66,35.24,26.45,56.7,31.32v-92.65h52.13v92.65c21.46-4.87,41.02-15.66,56.7-31.32,16.38-16.35,27.43-36.9,31.98-59.44l.38-1.9h53.12l-.38,2.7c-2.59,18.26-8.13,35.85-16.46,52.3-8.13,16.04-18.73,30.65-31.5,43.4-12.78,12.76-27.41,23.34-43.48,31.45-15.86,8.01-32.79,13.43-50.35,16.13v43.36c23.28-2.84,45.75-9.46,66.83-19.7,21.29-10.34,40.61-24.1,57.42-40.88,16.81-16.78,30.58-36.06,40.94-57.32,10.64-21.83,17.38-45.16,20.04-69.34l.23-2.11h52.72l-.23,2.58c-2.79,31.18-11.01,61.28-24.41,89.48-13.04,27.41-30.58,52.24-52.16,73.77-21.58,21.54-46.44,39.06-73.9,52.07-27.6,13.08-57.02,21.2-87.48,24.17v43.13c36.21-3.03,71.21-12.31,104.05-27.61,32.65-15.21,62.17-35.86,87.75-61.4,25.58-25.53,46.27-55.01,61.5-87.6,15.68-33.56,25.05-69.36,27.86-106.42l.17-2.19h52.61l-.16,2.52c-5.69,86.99-42.92,168.93-104.84,230.75-61.92,61.82-144.01,98.99-231.14,104.67-7.9,.52-15.92,.78-23.85,.78Z"/>'
+    + '<path fill="#d4af37" d="M571.53,338.71l-.23-2.11c-2.65-24.18-9.4-47.51-20.04-69.34-10.36-21.26-24.14-40.54-40.94-57.32-16.81-16.78-36.13-30.53-57.42-40.87-21.87-10.62-45.24-17.35-69.46-20-7.7-.85-15.59-1.28-23.44-1.28s-15.73,.43-23.43,1.28c-24.22,2.65-47.59,9.38-69.46,20-21.29,10.34-40.61,24.1-57.42,40.87-16.81,16.78-30.58,36.06-40.94,57.32-10.64,21.83-17.38,45.16-20.04,69.34l-.23,2.11h-52.72l.23-2.58c2.79-31.18,11.01-61.28,24.41-89.48,13.04-27.41,30.58-52.23,52.16-73.77,21.58-21.54,46.44-39.06,73.9-52.07,28.25-13.39,58.41-21.59,89.64-24.37,7.87-.71,15.91-1.06,23.9-1.06s16.03,.36,23.91,1.06c31.23,2.79,61.39,10.99,89.63,24.37,27.46,13.01,52.32,30.53,73.9,52.07,21.58,21.54,39.13,46.36,52.16,73.77,13.41,28.2,21.62,58.31,24.41,89.48l.23,2.58h-52.72Z"/>'
+    + '<path fill="#d4af37" d="M398.02,287.42c0,5.71-.88,11.22-2.51,16.39-6.97,22.08-27.64,38.09-52.06,38.09-3.75,0-7.41-.38-10.95-1.1,8.7-6.09,14.39-16.18,14.39-27.59,0-8.41-3.09-16.1-8.19-22-.71-.82-1.46-1.61-2.25-2.36-8.66-9.64-13.92-22.38-13.92-36.35,0-5.71,.88-11.22,2.51-16.39,6.97-22.08,27.64-38.09,52.06-38.09,3.75,0,7.41,.38,10.95,1.1-8.7,6.09-14.39,16.18-14.39,27.59,0,8.41,3.09,16.1,8.19,22,.71,.82,1.46,1.61,2.25,2.36,8.66,9.64,13.92,22.38,13.92,36.35Z"/>'
+    + '</svg>';
+
+  var bugBlob = new Blob([bugSVGstr], { type: 'image/svg+xml' });
+  var bugURL  = URL.createObjectURL(bugBlob);
+  new THREE.TextureLoader().load(bugURL, function(bugTex) {
+    URL.revokeObjectURL(bugURL);
+    var bugMat = new THREE.SpriteMaterial({ map: bugTex, transparent: true, sizeAttenuation: true, depthWrite: false });
+    bugSprite  = new THREE.Sprite(bugMat);
+    bugSprite.scale.set(0.24, 0.24, 1);
+
+    // Place at lat 38°N, lon -87°W (US midwest — center of North American Jewish population)
+    // Three.js sphere vertex formula: x=-cos(φ)*sin(θ), y=cos(θ), z=sin(φ)*sin(θ)
+    // where φ=(lon+180)/360*2π, θ=(90-lat)/180*π
+    var lat = 38, lon = -87;
+    var phi   = (lon + 180) / 360 * Math.PI * 2;
+    var theta = (90 - lat) / 180 * Math.PI;
+    var br    = 1.18; // radius above surface
+    bugSprite.position.set(
+      -Math.cos(phi) * Math.sin(theta) * br,
+       Math.cos(theta) * br,
+       Math.sin(phi) * Math.sin(theta) * br
+    );
+    bugBaseY = bugSprite.position.y;
+    globe.add(bugSprite); // attached to globe — rotates with it, always faces camera
+
+    // Gold point light at bug position — warms the globe surface below it
+    var bugLight = new THREE.PointLight(0xd4af37, 0.3, 1.8);
+    bugLight.position.copy(bugSprite.position);
+    globe.add(bugLight);
+  });
+
+  // ── Interaction: drag to rotate ───────────────────────────────────────────
+  var isDragging = false, prevX = 0;
+  var autoSpeed  = prefersReduced ? 0 : 0.0012;
+  var targetRotY = 0; // default: lon≈-90°W faces camera (North America centered)
+
+  function pDown(x) { isDragging = true; prevX = x; canvas.style.cursor = 'grabbing'; }
+  function pMove(x) {
+    if (!isDragging) return;
+    targetRotY += (x - prevX) * 0.006;
+    prevX = x;
+  }
+  function pUp() { isDragging = false; canvas.style.cursor = 'grab'; }
+
+  canvas.addEventListener('mousedown',  function(e) { pDown(e.clientX); });
+  window.addEventListener('mousemove',  function(e) { pMove(e.clientX); });
+  window.addEventListener('mouseup',    pUp);
+  canvas.addEventListener('touchstart', function(e) { e.preventDefault(); pDown(e.touches[0].clientX); }, { passive: false });
+  window.addEventListener('touchmove',  function(e) { if (isDragging) { e.preventDefault(); pMove(e.touches[0].clientX); } }, { passive: false });
+  window.addEventListener('touchend',   pUp);
+
+  // ── Animation loop ────────────────────────────────────────────────────────
+  var animId = null, stopped = false;
+
+  function animate() {
+    if (stopped) return;
+    animId = requestAnimationFrame(animate);
+    if (!isDragging) targetRotY += autoSpeed;
+    globe.rotation.y += (targetRotY - globe.rotation.y) * 0.06; // ease
+    if (bugSprite) bugSprite.position.y = bugBaseY + Math.sin(Date.now() * 0.0008) * 0.022; // bob
+    renderer.render(scene, camera);
+  }
+
+  // Pause when tab hidden — battery guard
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      if (animId) { cancelAnimationFrame(animId); animId = null; }
+    } else if (!stopped && !animId) {
+      animate();
+    }
+  });
+
+  // Stop and dispose when splash is dismissed
+  if (splashEl) {
+    new MutationObserver(function(muts, obs) {
+      muts.forEach(function(m) {
+        if (m.attributeName === 'style' && splashEl.style.display === 'none') {
+          stopped = true;
+          if (animId) cancelAnimationFrame(animId);
+          renderer.dispose();
+          obs.disconnect();
+        }
+      });
+    }).observe(splashEl, { attributes: true, attributeFilter: ['style'] });
+  }
+
+  if (!prefersReduced) animate();
+  else renderer.render(scene, camera); // single static frame for reduced-motion
+})();
+</script>
+
 <!-- Cinematic transition burst ring — positioned by JS on click -->
 <div id="wipe-burst"></div>
 
 <!-- SPLASH OVERLAY -->
 <div id="splash" role="dialog" aria-modal="true" aria-label="AJ 2026 Community Atlas introduction">
-  <svg id="splash-svg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <div id="globe-wrap">
+    <canvas id="globe-canvas"></canvas>
+    <!-- SVG terrain map: WebGL fallback, drawn by JS projection scripts below -->
+    <svg id="splash-svg" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <filter id="flame-filter" x="-200%" y="-200%" width="500%" height="500%">
         <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur"/>
@@ -274,6 +513,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
       </g>
     </svg>
   </svg>
+  </div><!-- /#globe-wrap -->
 
   <div id="splash-copy">
     <h1>Small Communities.<br>Outsized Stakes.</h1>
