@@ -1449,58 +1449,74 @@ function initMapEnhancements() {
     revealMap();
   }
 
-  // ── Cinematic path ────────────────────────────────────────────────────────
+  // ── Cinematic path — Ember Surge ─────────────────────────────────────────
   function dismissCinematic() {
     sessionStorage.setItem('aj2026-splash', '1');
-
-    // Freeze pulse animation on button
     btn.style.animation = 'none';
+    btn.classList.add('cta-press');
 
-    // Get button center in viewport coords
     var r  = btn.getBoundingClientRect();
     var bx = (r.left + r.width  / 2) | 0;
     var by = (r.top  + r.height / 2) | 0;
 
-    // 1. Anticipation beat: button scale-down flash
-    btn.classList.add('cta-press');
-
-    // 2. Burst ring expands from button center (atmosphere, not spinner)
+    // t=0 — burst ring
     if (burst) {
-      burst.style.left = bx + 'px';
-      burst.style.top  = by + 'px';
+      burst.style.left = bx + 'px'; burst.style.top = by + 'px';
       burst.style.display = 'block';
-      // Trigger animation next frame
       requestAnimationFrame(function() { burst.classList.add('firing'); });
     }
 
-    // 3. After anticipation beat → collapse splash toward button (clip-path wipe)
+    // t=200ms — bug light surges → warm amber wash floods globe
     setTimeout(function() {
-      var origin = bx + 'px ' + by + 'px';
+      var light = window._bugLight && window._bugLight();
+      if (light) {
+        // Animate PointLight intensity 0.5 → 12 over 400ms
+        var startI = light.intensity, targetI = 12, startT = Date.now();
+        var surgeDur = 400;
+        function surgeStep() {
+          var p = Math.min(1, (Date.now()-startT)/surgeDur);
+          light.intensity = startI + (targetI-startI)*p;
+          if (p < 1) requestAnimationFrame(surgeStep);
+        }
+        surgeStep();
+      }
+    }, 200);
 
-      // Reveal #app immediately, no CSS transition (clip-path handles visual)
-      app.style.cssText = 'opacity:1;transform:none;transition:none';
+    // t=300ms — canvas begins fading out
+    var canvasEl = document.getElementById('globe-canvas');
+    setTimeout(function() {
+      if (canvasEl) {
+        canvasEl.style.transition = 'opacity 0.4s ease-in';
+        canvasEl.style.opacity = '0';
+      }
+    }, 300);
+
+    // t=600ms — reveal map, fade splash
+    setTimeout(function() {
+      app.style.cssText = 'opacity:0;transform:none;transition:opacity 0.6s ease-out';
       revealMap();
-
-      // Collapse the splash toward the button position via clip-path shrink
-      el.style.transition = 'none';
-      el.style.clipPath    = 'circle(150% at ' + origin + ')';
-
       requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          el.style.transition = 'clip-path 0.72s cubic-bezier(0.4, 0, 0.2, 1)';
-          el.style.clipPath    = 'circle(0% at ' + origin + ')';
-        });
+        requestAnimationFrame(function() { app.style.opacity = '1'; });
       });
 
-      // Cleanup after wipe completes
-      setTimeout(function() {
-        el.style.display = 'none';
-        el.style.clipPath = '';
-        el.style.transition = '';
-        if (burst) { burst.style.display = 'none'; burst.classList.remove('firing'); }
-      }, 800);
+      el.style.transition = 'opacity 0.35s ease-in';
+      el.style.opacity = '0';
+    }, 600);
 
-    }, 200);
+    // t=950ms — hide splash completely, cool bug light back down
+    setTimeout(function() {
+      el.style.display = 'none';
+      el.style.opacity = '';
+      el.style.transition = '';
+      if (burst) { burst.style.display='none'; burst.classList.remove('firing'); }
+      // Cool light back to resting intensity
+      var light = window._bugLight && window._bugLight();
+      if (light) {
+        var startI=light.intensity, targetI=0.5, startT=Date.now();
+        function coolStep(){ var p=Math.min(1,(Date.now()-startT)/600); light.intensity=startI+(targetI-startI)*p; if(p<1) requestAnimationFrame(coolStep); }
+        coolStep();
+      }
+    }, 950);
   }
 
   function dismiss() {
