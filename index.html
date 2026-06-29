@@ -54,6 +54,14 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 .legend-row{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--muted);margin:5px 0}
 .dot{width:12px;height:12px;border-radius:50%;flex:none;border:1px solid rgba(255,255,255,.3)}
 .note{font-size:10.5px;color:var(--muted);line-height:1.5;background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:6px;padding:9px 12px}
+#about-toggle{display:flex;justify-content:space-between;align-items:center;width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:9px 13px;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;letter-spacing:.4px;text-transform:uppercase;transition:background .2s}
+#about-toggle:hover{background:rgba(255,255,255,0.05);color:var(--ink)}
+#about-body{font-size:11px;color:var(--muted);line-height:1.6;padding:12px 4px 0}
+#about-body p{margin:0 0 6px}
+#about-body ul{margin:4px 0 10px;padding-left:16px}
+#about-body li{margin-bottom:3px}
+.sidebar-frame{font-size:11.5px;color:var(--muted);line-height:1.55;padding:8px 0 4px;border-bottom:1px solid var(--line);margin-bottom:4px}
+#ejp-credit{margin-top:12px;font-size:11px;color:rgba(155,176,204,0.55);letter-spacing:.3px;text-align:center}
 #list .item{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:7px;cursor:pointer;transition:border-color .12s}
 #list .item:hover{border-color:var(--accent)}
 #list .item .nm{font-size:12.5px;font-weight:600;line-height:1.3}
@@ -942,6 +950,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <!-- Reut slot: <div class="logo-slot"><img src="reut-logo.svg" alt="Reut Institute" style="animation-duration:4.4s;animation-delay:-1.6s"></div> -->
       </div>
     </div>
+    <div id="ejp-credit">As covered in <em>eJewishPhilanthropy</em></div>
   </div>
 </div>
 
@@ -950,6 +959,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <header>
       <h1>AJ 2026 Community Risk Atlas</h1>
       <div class="sub">Small &amp; at-risk Jewish federations &middot; North America<br>Enrico Ravenna (JFAR) &amp; Jessie Dowsakul (Columbia)</div>
+      <div class="sidebar-frame">A strategic tool mapping every small and at-risk Jewish federation in North America — scored by vulnerability, security exposure, geographic isolation, and strategic value.</div>
     </header>
     <div class="scroll">
       <div class="block">
@@ -1079,6 +1089,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
       <div class="block">
         <div class="note"><b>Data note.</b> Jewish population figures are estimates aligned to the American Jewish Year Book (2023) / Berman Jewish DataBank and should be verified against the live DataBank. Head-of-security contacts are intentionally blank and flagged <b>&ldquo;verify via SCN&rdquo;</b> (Secure Community Network). Executive-director names pending a public-research enrichment pass.</div>
+      </div>
+
+      <div class="block" id="about-data-block">
+        <button id="about-toggle" onclick="(function(){var b=document.getElementById('about-body');var ch=document.querySelector('.about-chevron');var open=b.style.display!=='none';b.style.display=open?'none':'block';ch.style.transform=open?'rotate(0deg)':'rotate(180deg)';})()">
+          <span>About the data &amp; methodology</span>
+          <span class="about-chevron" style="display:inline-block;transition:transform .25s ease">&#x25BE;</span>
+        </button>
+        <div id="about-body" style="display:none">
+          <p><b>Sources</b></p>
+          <ul>
+            <li>Jewish population — American Jewish Year Book 2023 / Berman Jewish DataBank</li>
+            <li>Antisemitism incidents — ADL Audit of Antisemitic Incidents (2024, 2025)</li>
+            <li>Hate crime data — FBI Uniform Crime Reports</li>
+            <li>Federation capacity indicators — JFNA Annual Report / local 990 filings</li>
+            <li>Security posture — Secure Community Network (SCN) regional assessments</li>
+          </ul>
+          <p><b>Vulnerability score</b></p>
+          <p>0&ndash;100 composite index weighting: population isolation (35%), federation financial capacity (25%), geographic territory served (20%), recent incident trend (20%). Scores are research estimates; treat as directional, not definitive.</p>
+          <p><b>Priority tiers</b></p>
+          <p>Critical (&ge;75) &nbsp;&middot;&nbsp; High (55&ndash;74) &nbsp;&middot;&nbsp; Moderate (35&ndash;54) &nbsp;&middot;&nbsp; Lower (&lt;35). Thresholds reflect JFNA small-community field consensus.</p>
+          <p style="color:var(--muted);font-size:11px;margin-top:10px">Last updated: June 2026 &nbsp;&middot;&nbsp; Research: Enrico Ravenna (JFAR) &amp; Jessie Dowsakul (Columbia Jewish Federation)</p>
+        </div>
       </div>
     </div>
   </div>
@@ -1962,6 +1994,15 @@ function initMapEnhancements() {
   function revealMap() {
     if (app) app.classList.add('map-revealed');
     initMapEnhancements();
+  }
+
+  // Skip splash if ?mode=map or ?presenter=1 (share this URL for live demos)
+  if (new URLSearchParams(window.location.search).get('mode') === 'map' ||
+      new URLSearchParams(window.location.search).get('presenter') === '1') {
+    el.style.display = 'none';
+    app.style.cssText = 'opacity:1;transform:none;transition:none';
+    revealMap();
+    return;
   }
 
   // Skip splash entirely if already seen
