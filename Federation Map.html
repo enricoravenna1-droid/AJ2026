@@ -170,7 +170,7 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 #splash-copy{position:absolute;bottom:4vh;left:50%;transform:translateX(-50%);z-index:2;text-align:center;width:min(540px,90vw)}
 /* === LOGO STRIP === */
 #logo-strip{margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.08)}
-.logo-items{display:flex;justify-content:center;align-items:center;gap:20px;flex-wrap:wrap}
+.logo-items{display:flex;justify-content:center;align-items:center;gap:20px;flex-wrap:nowrap;will-change:transform}
 .logo-slot{display:flex;align-items:center;justify-content:center;
   background:rgba(255,255,255,0.055);border-radius:10px;padding:10px 20px;
   transition:background .35s ease;
@@ -659,6 +659,7 @@ document.addEventListener('DOMContentLoaded', function() {
   // ── interaction ───────────────────────────────────────────────────────────
   var isDrag=false,prevX=0,prevY=0,tRotY=0.3,tRotX=0.08;
   var autoSpd = PR ? 0 : 0.003;
+  var logoItemsEl = document.querySelector('.logo-items');
   function pDn(x,y){isDrag=true;prevX=x;prevY=y;canvas.style.cursor='grabbing';}
   function pMv(x,y){if(!isDrag)return;tRotY+=(x-prevX)*0.007;tRotX+=(y-prevY)*0.003;tRotX=Math.max(-0.45,Math.min(0.45,tRotX));prevX=x;prevY=y;}
   function pUp(){isDrag=false;canvas.style.cursor='grab';}
@@ -683,6 +684,11 @@ document.addEventListener('DOMContentLoaded', function() {
     globe.rotation.y+=(tRotY-globe.rotation.y)*0.055;
     globe.rotation.x+=(tRotX-globe.rotation.x)*0.055;
     globe.rotation.z=Math.sin(dt*0.00008)*0.03;
+
+    // Logo strip — horizontal drift synced to globe rotation
+    if(logoItemsEl){
+      logoItemsEl.style.transform='translateX('+(Math.sin(globe.rotation.y)*9).toFixed(2)+'px)';
+    }
 
     // shimmer + parallax for star layers
     mouseParallax.x += (mouseParallax.tx - mouseParallax.x) * 0.04;
