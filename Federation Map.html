@@ -161,17 +161,20 @@ html,body{margin:0;height:100%;font-family:'Inter',-apple-system,BlinkMacSystemF
 .na-coast{fill:none;stroke:#2a3a59;stroke-width:.6;stroke-dasharray:3 4}
 #splash-copy{position:absolute;bottom:4vh;left:50%;transform:translateX(-50%);z-index:2;text-align:center;width:min(540px,90vw)}
 /* === LOGO STRIP === */
-#logo-strip{margin-top:28px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)}
-.logo-items{display:flex;justify-content:center;align-items:center;gap:40px}
-.logo-slot{display:flex;align-items:center;justify-content:center}
-.logo-slot img{height:36px;width:auto;display:block;
-  filter:grayscale(1) brightness(3);opacity:0.45;
-  transition:filter .35s ease,opacity .35s ease;
+#logo-strip{margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,0.08)}
+.logo-items{display:flex;justify-content:center;align-items:center;gap:16px;flex-wrap:wrap}
+.logo-slot{display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,0.055);border-radius:10px;padding:7px 16px;
+  transition:background .35s ease}
+.logo-slot:hover{background:rgba(255,255,255,0.12)}
+.logo-slot img{height:30px;width:auto;display:block;
+  filter:grayscale(0.4);opacity:0.6;
+  transition:filter .35s ease,opacity .35s ease,transform .15s ease;
   animation:logo-bob 4.2s ease-in-out infinite}
-.logo-slot:hover img{
-  filter:brightness(1.25) drop-shadow(0 0 10px rgba(28,136,237,.5));
-  opacity:1}
-@keyframes logo-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.logo-slot:hover img{filter:none;opacity:1}
+.logo-slot img:hover{transform:scale(1.04)}
+@keyframes logo-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@media(max-width:480px){.logo-slot img{height:24px}.logo-slot{padding:6px 12px}.logo-items{gap:10px}}
 #splash-copy h1{font-family:'Inter',sans-serif;font-size:clamp(26px,5vw,42px);font-weight:700;color:#eef3fb;margin:0 0 14px;letter-spacing:-.5px;line-height:1.12}
 #splash-copy p{font-family:'Inter',sans-serif;font-size:clamp(14px,2vw,16px);color:#9fb0cc;line-height:1.65;margin:0 0 36px;font-weight:400}
 #splash-cta{font-family:'Inter',sans-serif;font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;padding:12px 34px;background:transparent;border:1px solid #3b82f6;color:#7ab4fa;border-radius:5px;cursor:pointer;transition:background .18s,color .18s}
@@ -928,12 +931,15 @@ document.addEventListener('DOMContentLoaded', function() {
     <div id="logo-strip">
       <div class="logo-items">
         <div class="logo-slot">
-          <img src="jfar-logo.svg" alt="Jewish Federation of Arkansas" title="Jewish Federation of Arkansas">
+          <img src="jfar-logo.svg" alt="Jewish Federation of Arkansas" title="Jewish Federation of Arkansas" style="animation-duration:4.2s;animation-delay:-0.8s">
         </div>
-        <!-- Additional partner logos added here — structure supports up to 4 -->
-        <!-- <div class="logo-slot"><img src="columbia-logo.png" alt="Jewish Federation of Columbia" style="animation-delay:.6s"></div> -->
-        <!-- <div class="logo-slot"><img src="reut-logo.png" alt="Reut Institute" style="animation-delay:1.2s"></div> -->
-        <!-- <div class="logo-slot"><img src="aj2054-logo.png" alt="AJ2054" style="animation-delay:1.8s"></div> -->
+        <div class="logo-slot">
+          <img src="columbia-logo.png" alt="Columbia Jewish Federation" title="Columbia Jewish Federation" style="animation-duration:3.7s;animation-delay:-2.1s">
+        </div>
+        <div class="logo-slot">
+          <img src="aj2054-logo.jpg" alt="AJ2054" title="AJ2054 — Toward a Decade of Renewal of American Jewry" style="animation-duration:4.9s;animation-delay:-3.4s">
+        </div>
+        <!-- Reut slot: <div class="logo-slot"><img src="reut-logo.svg" alt="Reut Institute" style="animation-duration:4.4s;animation-delay:-1.6s"></div> -->
       </div>
     </div>
   </div>
