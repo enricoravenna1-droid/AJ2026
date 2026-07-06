@@ -1237,6 +1237,7 @@ function popupHTML(d){
   const univBadge = d.univ_count>0 ? `<div class="secflag">&#127891; <b>${d.univ_count} campus${d.univ_count>1?'es':''}</b> in territory &middot; ${fmt(d.univ_jewish_students)} Jewish students${d.univ_top_school?` &middot; largest: <b>${d.univ_top_school}</b>`:''}</div>` : '';
   return `<div class="pop">
     <h3>${d.name}</h3>
+    ${scoreCard(d)}
     <div class="loc">${d.city}, ${d.state}, ${d.country}
       &middot; <span class="pill pb-${d.priority}" style="background:${PCOL[d.priority]};color:#fff">${d.priority}</span></div>
     ${capBadge}${univBadge}
@@ -1252,8 +1253,8 @@ function popupHTML(d){
       <tr><td class="k">ADL 2025</td><td>${d.adl_incidents_2025!=null?`${fmt(d.adl_incidents_2025)} state incidents <span style="color:var(--muted)">(${d.adl_per_100k_2025}/100k)</span> <span style="color:${d.adl_yoy_pct_24_25>=0?'var(--crit)':'var(--low)'};font-weight:600">${d.adl_yoy_pct_24_25>0?'+':''}${d.adl_yoy_pct_24_25}% YoY</span> <span class="srctag src-fed">ADL</span>`:(d.adl_2025_source==='pending'?'<span style="color:var(--muted)">pending (non&#8209;top&#8209;10 state, ADL Audit 2025)</span>':'<span style="color:var(--muted)">n/a (US data)</span>')}</td></tr>
       <tr><td class="k">FBI 2024</td><td>${d.fbi_incidents_2024!=null?`${fmt(d.fbi_incidents_2024)} state hate crimes <span style="color:var(--muted)">(${d.fbi_per_100k}/100k)</span> <span class="srctag src-fed">FBI CDE</span>`:'<span style="color:var(--muted)">pending (national: 1,938 in 2024)</span>'}</td></tr>
       <tr><td class="k">Vulnerability</td><td><b>${d.vulnerability}</b> / 100</td></tr>
-      <tr><td class="k">10-yr growth</td><td>${d.growth_pct_10yr>0?'+':''}${d.growth_pct_10yr}% <span style="color:var(--muted)">(${d.growth_band})</span> <span class="srctag ${d.growth_source==='Documented / study'?'src-fed':'src-est'}">${d.growth_source==='Documented / study'?'documented':'modeled'}</span></td></tr>
       <tr><td class="k">Value score</td><td><b>${d.value_score}</b> / 100 &middot; ${d.value_tier}${d.univ_bonus>0?` <span style="color:var(--muted)">(incl. +${d.univ_bonus} campus bonus)</span>`:''}</td></tr>
+      <tr><td class="k">10-yr growth</td><td>${d.growth_pct_10yr>0?'+':''}${d.growth_pct_10yr}% <span style="color:var(--muted)">(${d.growth_band})</span> <span class="srctag ${d.growth_source==='Documented / study'?'src-fed':'src-est'}">${d.growth_source==='Documented / study'?'documented':'modeled'}</span></td></tr>
       <tr><td class="k">Universities</td><td>${d.univ_count>0?`${d.univ_count} campus${d.univ_count>1?'es':''} &middot; ${fmt(d.univ_jewish_students)} Jewish students`:'<span style="color:var(--muted)">none identified in territory</span>'}</td></tr>
       <tr><td class="k">Exec director</td><td>${ed}</td></tr>
       <tr><td class="k">Website</td><td><a href="https://${d.website.replace(/^https?:\/\//,'')}" target="_blank">${d.website}</a></td></tr>
@@ -1452,18 +1453,24 @@ function drawSCN(){
 }
 
 // === MINI CHART (sparkline + vulnerability meter) ===
-function miniChart(d){
-  const pCol = PCOL[d.priority]||'#555';
-  const meter = `<div style="margin:12px 0 8px">
-    <div style="font-size:9px;color:var(--muted);letter-spacing:.8px;font-weight:600;margin-bottom:5px">VULNERABILITY SCORE</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <div style="flex:1;background:#141d30;border-radius:4px;height:7px;overflow:hidden">
-        <div style="background:${pCol};height:100%;width:${d.vulnerability}%;border-radius:4px;box-shadow:0 0 6px ${pCol}55"></div>
-      </div>
-      <span style="font-size:12px;font-weight:700;color:var(--ink);min-width:26px">${d.vulnerability}</span>
+function scoreCard(d){
+  const pc = PCOL[d.priority]||'#888';
+  const vc = valueColor(d);
+  return `<div class="scorecard" style="display:flex;gap:8px;margin:10px 0 12px">
+    <div style="flex:1;background:${pc}17;border-radius:10px;padding:9px 11px;border-left:3px solid ${pc}">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700;margin-bottom:2px">Vulnerability</div>
+      <div style="font-size:25px;font-weight:800;color:var(--ink);line-height:1.05">${d.vulnerability}<span style="font-size:12px;font-weight:600;color:var(--muted)"> /100</span></div>
+      <div style="font-size:11px;font-weight:700;color:${pc};margin-top:2px">${d.priority}</div>
+    </div>
+    <div style="flex:1;background:${vc}17;border-radius:10px;padding:9px 11px;border-left:3px solid ${vc}">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700;margin-bottom:2px">Value</div>
+      <div style="font-size:25px;font-weight:800;color:var(--ink);line-height:1.05">${d.value_score}<span style="font-size:12px;font-weight:600;color:var(--muted)"> /100</span></div>
+      <div style="font-size:11px;font-weight:700;color:${vc};margin-top:2px">${d.value_tier}</div>
     </div>
   </div>`;
-  if(d.adl_incidents_2024==null) return meter;
+}
+function miniChart(d){
+  if(d.adl_incidents_2024==null) return '';
   const v24 = d.adl_incidents_2024||0;
   const v25 = d.adl_incidents_2025;
   const hasV25 = v25!=null;
@@ -1488,7 +1495,7 @@ function miniChart(d){
       </div>`:''}
     </div>
   </div>`;
-  return meter + bars;
+  return bars;
 }
 
 // === SELECTION + PANEL ===
@@ -1506,6 +1513,7 @@ function panelHTML(d){
   const capBadge = d.is_capital ? `<div class="secflag">&#127963; <b>${d.capital_label}</b></div>` : '';
   const univBadge = d.univ_count>0 ? `<div class="secflag">&#127891; <b>${d.univ_count} campus${d.univ_count>1?'es':''}</b> &middot; ${fmt(d.univ_jewish_students)} Jewish students${d.univ_top_school?` &middot; largest: <b>${d.univ_top_school}</b>`:''}</div>` : '';
   return `<h3>${d.name}</h3>
+  ${scoreCard(d)}
   <div class="loc">${d.city}, ${d.state} &middot; ${SCOPE_LBL[d.territory_scope]||d.territory_scope}</div>
   ${capBadge}${univBadge}
   ${miniChart(d)}
@@ -1516,10 +1524,10 @@ function panelHTML(d){
     <tr><td class="k">Isolation</td><td>${d.is_hub?'Hub community':(d.isolation_mi!=null?`~${fmt(d.isolation_mi)} mi → ${d.nearest_hub}`:'—')}</td></tr>
     <tr><td class="k">Nearest fed.</td><td>${d.nearest_any_fed?`~${fmt(d.nearest_any_mi)} mi → ${d.nearest_any_fed} <span style="color:var(--muted)">(${fmt(d.nearest_any_pop)})</span>`:'—'}</td></tr>
     <tr><td class="k">Vulnerability</td><td><b style="font-size:14px">${d.vulnerability}</b> / 100</td></tr>
+    <tr><td class="k">Value score</td><td><b style="font-size:14px">${d.value_score}</b> / 100 &middot; ${d.value_tier}${d.univ_bonus>0?` <span style="color:var(--muted)">(incl. +${d.univ_bonus} campus bonus)</span>`:''}</td></tr>
     <tr><td class="k">ADL 2024</td><td>${adl24}</td></tr>
     <tr><td class="k">ADL 2025</td><td>${adl25}</td></tr>
     <tr><td class="k">10-yr growth</td><td>${d.growth_pct_10yr>0?'+':''}${d.growth_pct_10yr}% <span style="color:var(--muted)">(${d.growth_band})</span></td></tr>
-    <tr><td class="k">Value score</td><td><b>${d.value_score}</b> / 100 &middot; ${d.value_tier}${d.univ_bonus>0?` <span style="color:var(--muted)">(incl. +${d.univ_bonus} campus bonus)</span>`:''}</td></tr>
     <tr><td class="k">Universities</td><td>${d.univ_count>0?`${d.univ_count} campus${d.univ_count>1?'es':''} &middot; ${fmt(d.univ_jewish_students)} Jewish students`:'<span style="color:var(--muted)">none identified in territory</span>'}</td></tr>
     <tr><td class="k">Exec director</td><td>${ed}</td></tr>
     <tr><td class="k">Website</td><td><a href="https://${d.website.replace(/^https?:\/\//,'')}" target="_blank" style="color:var(--accent)">${d.website}</a></td></tr>
